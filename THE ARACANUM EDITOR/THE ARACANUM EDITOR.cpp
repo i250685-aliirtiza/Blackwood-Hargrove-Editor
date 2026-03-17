@@ -9,7 +9,6 @@ unsigned long long capacity = 100000;
 wchar_t* text = new wchar_t[capacity];
 unsigned long long length = 0;
 
-int current_page = 0;//for displaying current page to user
 
 //default
 int line_length = 10;
@@ -108,7 +107,7 @@ struct page {
 
 
 page* pages = new page[total_pages];
-int page_index = 0; //valid pages
+int page_index = 0; //current page setter
 
 void resize(page*& pages, int& total_pages) {
     page* copy = new page[total_pages * 2];
@@ -337,8 +336,6 @@ void recalculateLayout() {
     }
 
 }
-
-
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
