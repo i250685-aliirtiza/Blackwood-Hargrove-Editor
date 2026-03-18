@@ -5,18 +5,23 @@
 
 unsigned long long start_time = time(NULL);
 
-unsigned long long capacity = 100000;
+unsigned long long capacity = 10000;
 wchar_t* text = new wchar_t[capacity];
 unsigned long long length = 0;
 
 
+//tracking words
+unsigned int words = 0;
+
+
 //default
 int line_length = 10;
-int total_lines = 5;
-int total_columns =4;
-int total_pages = 1;
+int total_lines = 20;
+int total_columns =8;
+int total_pages = 5;
 int startX = 40;       // left margin
 int startY = 40;       // top margin
+int cursor_width = 1;
 
 void append(wchar_t*& text, unsigned long long& index, unsigned long long& cap,wchar_t c) {
     if (index >= cap-1) {
@@ -135,8 +140,6 @@ int getLen(wchar_t* ptr) {
     return i;
 }
 
-
-
 void debugLayout() {
     for (int p = 0; p <= page_index; p++) {
         wprintf(L"PAGE %d\n", p);
@@ -166,14 +169,14 @@ void recalculateLayout() {
     int total = 0;
     while (true) {
         //DEBUGGING 
-        
+
         //wprintf(L"\n=== LAYOUT DEBUG ===\n");
         //wprintf(L"Text: \"%s\"\n", text);
         //wprintf(L"Length: %llu\n\n", length);
         //wprintf(L"index: %d\n", track);
         //wprintf(L"index: %c\n", text[track]);
         //debugLayout();
-        
+
 
 
        //text buffer filled
@@ -191,7 +194,7 @@ void recalculateLayout() {
 
         //if -1 go to next line/column/page whatever is in place
         if (len == -1) {
-            
+
             pages[p].columns[c].lines[l].len = total;
             //move to next line
             if (l < total_lines - 1) {
@@ -224,18 +227,77 @@ void recalculateLayout() {
                 track++;
                 continue;
             }
-            
+
             continue;
         }
-        
-        //if a word is longer than line
-        if (len > line_length) {
 
+
+        total += len;
+        //if it fits
+        if (total <= line_length) {
+            if (pages[p].columns[c].lines[l].start == -1) {
+                pages[p].columns[c].lines[l].start = track;
+            }
+            pages[p].columns[c].lines[l].len = total;
+            //move index
+            track += len;
+            continue;
+        }
+        //else wrap
+        else {
+            // Save current line without this word
+            if (pages[p].columns[c].lines[l].start != -1) {
+                pages[p].columns[c].lines[l].len = total - len;
+            }
+            else continue;
+
+
+            if (l < total_lines - 1) {
+                l++;
+                //set starting index for new line, where old world wrapped
+                pages[p].columns[c].lines[l].start = -1;
+                pages[p].columns[c].lines[l].len = 0;
+
+                pages[p].columns[c].lines[l].start = track;
+                total = 0;
+                
+            }
+            //else move to next column top
+            else if (c < total_columns - 1) {
+                c++;
+                l = 0;
+                pages[p].columns[c].lines[l].start = -1;
+                pages[p].columns[c].lines[l].len = 0;
+
+                pages[p].columns[c].lines[l].start = track;
+                total = 0;
+               
+            }
+            //page break
+            else {
+                p++;
+                //if pages full
+                if (p >= total_pages)resize(pages, total_pages);
+                c = 0;
+                l = 0;
+
+                pages[p].columns[c].lines[l].start = -1;
+                pages[p].columns[c].lines[l].len = 0;
+
+                pages[p].columns[c].lines[l].start = track;
+                total = 0;
+               
+            }
+
+        }
+        //if a word is longer than line
+        while(len > line_length) {
 
             if (pages[p].columns[c].lines[l].start == -1) {
                 pages[p].columns[c].lines[l].start = track;
             }
-            pages[p].columns[c].lines[l].len =line_length;
+            pages[p].columns[c].lines[l].len = line_length;
+            len -= line_length;
             track += line_length;//remaining word in next line
             total = 0;
 
@@ -272,66 +334,9 @@ void recalculateLayout() {
                 total = 0;
             }
 
-            continue;
+           
         }
 
-        total += len;
-        //if it fits
-        if (total<=line_length) {
-            if (pages[p].columns[c].lines[l].start == -1) {
-                pages[p].columns[c].lines[l].start = track;
-            }
-            pages[p].columns[c].lines[l].len = total;
-            //move index
-            track += len;
-            continue;
-        }
-        //else wrap
-        else {
-            // Save current line without this word
-            if (pages[p].columns[c].lines[l].start != -1) {
-                pages[p].columns[c].lines[l].len = total-len;
-            }
-
-            
-            if (l < total_lines - 1) {
-                l++;
-                //set starting index for new line, where old world wrapped
-                pages[p].columns[c].lines[l].start = -1;
-                pages[p].columns[c].lines[l].len = 0;
-     
-                pages[p].columns[c].lines[l].start = track;
-                total = 0;
-                continue;
-            }
-            //else move to next column top
-            else if (c<total_columns-1) {
-                c++;
-                l = 0;
-                pages[p].columns[c].lines[l].start = -1;
-                pages[p].columns[c].lines[l].len = 0;
-
-                pages[p].columns[c].lines[l].start = track;
-                total = 0;
-                continue;
-            }
-            //page break
-            else {
-                p++;
-                //if pages full
-                if (p >= total_pages)resize(pages, total_pages);
-                c = 0;
-                l = 0;
-
-                pages[p].columns[c].lines[l].start = -1;
-                pages[p].columns[c].lines[l].len = 0;
-
-                pages[p].columns[c].lines[l].start = track;
-                total = 0;
-                continue;
-            }
-
-        }
 
     }
 
@@ -377,7 +382,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         float offset = 0;
         int p = page_index;
 
-            // Loop over columns (0..total_columns-1)
+            // Loop over columns 
             for (int c = 0; c < total_columns; c++) {
                 if (filled) break;
                 // Loop over lines
@@ -419,11 +424,12 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         offset = offset == 0 ? startX : offset;
         //showing periodically
         if (elapsed_time % 2==0) {
-            RECT cursorRect = { offset, y,offset +1, y + lineHeight };
+            RECT cursorRect = { offset, y,offset +cursor_width, y + lineHeight };
             brush = CreateSolidBrush(RGB(0, 0, 0));
             FillRect(hdc, &cursorRect, brush);
             DeleteObject(brush);
         }
+
         // Restore and cleanup
         SelectObject(hdc, oldFont);
         DeleteObject(font);
@@ -442,7 +448,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     case WM_CHAR: {
         // Backspace
         if (wParam == '\b') {
-            if (length > 0) {
+            
+            if (length >1) {
+                if (text[length-1]!=' ' && text[length-2]==' ')words--;
+                
                 text[length - 1] = '\0';
                 length--;
                 recalculateLayout();
@@ -450,26 +459,26 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             }
             else {
                 text[0] = '\0';
+                words = 0;
                 recalculateLayout();
                 InvalidateRect(hwnd, NULL, FALSE);
             }
         }
         // Enter key
         else if (wParam == '\r') {
-            if (length < capacity) {
                 append(text, length, capacity, '\n');
                 recalculateLayout();
                 InvalidateRect(hwnd, NULL, FALSE);
-            }
+            
         }
         // Printable characters
         else if (wParam >= 32 && wParam != 127) {
-            wprintf(L"Typed: %c\n", (wchar_t)wParam);  // ADD THIS LINE
-            if (length < capacity) {
+                if (wParam == ' ' && length>=2 && text[length-1]!=' ')words++;
+                
                 append(text, length, capacity, (wchar_t)wParam);
                 recalculateLayout();
                 InvalidateRect(hwnd, NULL, FALSE);
-            }
+            
         }
         return 0;
     }
