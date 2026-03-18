@@ -17,15 +17,15 @@ unsigned int words = 0;
 //default
 int line_length = 10;
 int total_lines = 20;
-int total_columns =8;
+int total_columns = 8;
 int total_pages = 5;
 int startX = 40;       // left margin
 int startY = 40;       // top margin
 int cursor_width = 1;
 
-void append(wchar_t*& text, unsigned long long& index, unsigned long long& cap,wchar_t c) {
-    if (index >= cap-1) {
-        wchar_t* copy = new wchar_t[cap* 2];
+void append(wchar_t*& text, unsigned long long& index, unsigned long long& cap, wchar_t c) {
+    if (index >= cap - 1) {
+        wchar_t* copy = new wchar_t[cap * 2];
         for (unsigned long long j = 0; j < index; j++) {
             copy[j] = text[j];
         }
@@ -47,8 +47,8 @@ struct Line {
 struct column {
     Line* lines;
 
-    column() { 
-        lines = new Line[total_lines]; 
+    column() {
+        lines = new Line[total_lines];
     }
 
     // Copy constructor
@@ -57,10 +57,10 @@ struct column {
         for (int i = 0; i < total_lines; i++) {
             lines[i] = other.lines[i];
         }
-    
+
     }
 
-    column& operator=(const column& other){
+    column& operator=(const column& other) {
         if (this == &other)return *this;
         delete[] this->lines;
         this->lines = new Line[total_lines];
@@ -69,7 +69,7 @@ struct column {
         }
 
         return *this;
-    
+
     }
 
     ~column() {
@@ -80,7 +80,7 @@ struct column {
 struct page {
     column* columns;
 
-    page() { 
+    page() {
         columns = new column[total_columns];
     }
 
@@ -89,7 +89,7 @@ struct page {
         columns = new column[total_columns];
         for (int i = 0; i < total_columns; i++)
             columns[i] = other.columns[i];
-        }
+    }
     //assignment operator
     page& operator=(const page& other) {
         if (this == &other)return *this;
@@ -105,10 +105,10 @@ struct page {
     }
 
 
-    ~page(){ 
-        delete[] columns; 
+    ~page() {
+        delete[] columns;
     }
-}; 
+};
 
 
 page* pages = new page[total_pages];
@@ -117,8 +117,8 @@ int page_index = 0; //current page setter
 void resize(page*& pages, int& total_pages) {
     page* copy = new page[total_pages * 2];
 
-    
-    for (int i = 0; i <total_pages; i++) {
+
+    for (int i = 0; i < total_pages; i++) {
         copy[i] = pages[i];
     }
     delete[] pages;
@@ -131,7 +131,7 @@ int getLen(wchar_t* ptr) {
     if (*ptr == '\n')return -1;
 
     int i = 0;
-    while (*ptr && *ptr != ' ' && *ptr!='\n') {
+    while (*ptr && *ptr != ' ' && *ptr != '\n') {
         i++;
         ptr++;
     }
@@ -162,11 +162,21 @@ void debugLayout() {
 //filling our layout
 void recalculateLayout() {
     // Read through `text`, break it into lines/columns/pages
+
+    // Clear previous layout
+    for (int p = 0; p <= page_index; p++) {
+        for (int c = 0; c < total_columns; c++) {
+            for (int l = 0; l < total_lines; l++) {
+                pages[p].columns[c].lines[l].start = -1;
+                pages[p].columns[c].lines[l].len = 0;
+            }
+        }
+    }
     unsigned long long track = 0; //iterating over text
     int p = 0;//represents current page
     int c = 0;//represents current column
     int l = 0; //represents current line
-    int total = 0;
+    int total = 0;//current chars on line 
     while (true) {
         //DEBUGGING 
 
@@ -188,7 +198,7 @@ void recalculateLayout() {
         if (p >= total_pages) {
             resize(pages, total_pages);
         }
-        //LINE WRAPPING
+
         //get len of word
         int len = getLen(&text[track]);
 
@@ -245,13 +255,22 @@ void recalculateLayout() {
         }
         //else wrap
         else {
+            
             // Save current line without this word
             if (pages[p].columns[c].lines[l].start != -1) {
                 pages[p].columns[c].lines[l].len = total - len;
             }
-            else continue;
+            else {
+                // Line is empty,so truncate the word. fit it here and move the track
+                pages[p].columns[c].lines[l].start = track;
+                pages[p].columns[c].lines[l].len = line_length;
 
-
+                len -= line_length;
+                track += line_length;
+                total = 0;
+            }
+            
+            //MOVEMENT OF LINE/COLUMN/PAGE(whatever is required)
             if (l < total_lines - 1) {
                 l++;
                 //set starting index for new line, where old world wrapped
@@ -260,7 +279,7 @@ void recalculateLayout() {
 
                 pages[p].columns[c].lines[l].start = track;
                 total = 0;
-                
+
             }
             //else move to next column top
             else if (c < total_columns - 1) {
@@ -271,7 +290,7 @@ void recalculateLayout() {
 
                 pages[p].columns[c].lines[l].start = track;
                 total = 0;
-               
+
             }
             //page break
             else {
@@ -286,12 +305,14 @@ void recalculateLayout() {
 
                 pages[p].columns[c].lines[l].start = track;
                 total = 0;
-               
+
             }
 
         }
+
+        //SPECIAL CASE
         //if a word is longer than line
-        while(len > line_length) {
+        while (len > line_length) {
 
             if (pages[p].columns[c].lines[l].start == -1) {
                 pages[p].columns[c].lines[l].start = track;
@@ -334,13 +355,16 @@ void recalculateLayout() {
                 total = 0;
             }
 
-           
+
         }
 
 
     }
 
 }
+
+
+
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
@@ -377,45 +401,45 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         bool filled = false;
         unsigned long long track = 0;
-        float x=startX, y=startY;
+        float x = startX, y = startY;
         int current_column = 0;
         float offset = 0;
         int p = page_index;
 
-            // Loop over columns 
-            for (int c = 0; c < total_columns; c++) {
-                if (filled) break;
-                // Loop over lines
-                for (int l = 0; l < total_lines; l++) {
-                    
-                    unsigned long long start = pages[p].columns[c].lines[l].start;
-                    int len = pages[p].columns[c].lines[l].len;
+        // Loop over columns 
+        for (int c = 0; c < total_columns; c++) {
+            if (filled) break;
+            // Loop over lines
+            for (int l = 0; l < total_lines; l++) {
 
-                    if (start==-1 || len == 0)continue;
-                    offset = 0;
+                unsigned long long start = pages[p].columns[c].lines[l].start;
+                int len = pages[p].columns[c].lines[l].len;
 
-                    // Calculate position
-                    x = startX + c * (line_length*columnSpacing); 
-                    y = startY + l * lineHeight;
-                    current_column = c+1;
+                if (start == -1 || len == 0)continue;
+                offset = 0;
 
-                    TextOutW(hdc, x, y, text + start, len);
-                    size;
-                    GetTextExtentPoint32W(hdc, text+start,len, &size);
-                    int lineWidth = size.cx; // width in pixels of len characters
-                    offset += (x+lineWidth);
-                    offset -= 10;//padding
+                // Calculate position
+                x = startX + c * (line_length * columnSpacing);
+                y = startY + l * lineHeight;
+                current_column = c + 1;
 
-                    // update track
-                    track += len;
-                    if (track >= length) {
-                        filled = true;
-                        break;
-                    }
+                TextOutW(hdc, x, y, text + start, len);
+                size;
+                GetTextExtentPoint32W(hdc, text + start, len, &size);
+                int lineWidth = size.cx; // width in pixels of len characters
+                offset += (x + lineWidth);
+                offset -= 10;//padding
+
+                // update track
+                track += len;
+                if (track >= length) {
+                    filled = true;
+                    break;
                 }
             }
-        
-        
+        }
+
+
 
         //rendering cursor
         unsigned long long current_time = time(NULL);
@@ -423,8 +447,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         offset = offset == 0 ? startX : offset;
         //showing periodically
-        if (elapsed_time % 2==0) {
-            RECT cursorRect = { offset, y,offset +cursor_width, y + lineHeight };
+        if (elapsed_time % 2 == 0) {
+            RECT cursorRect = { offset, y,offset + cursor_width, y + lineHeight };
             brush = CreateSolidBrush(RGB(0, 0, 0));
             FillRect(hdc, &cursorRect, brush);
             DeleteObject(brush);
@@ -448,14 +472,14 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     case WM_CHAR: {
         // Backspace
         if (wParam == '\b') {
-            
-            if (length >1) {
-                if (text[length-1]!=' ' && text[length-2]==' ')words--;
-                
+
+            if (length > 1) {
+                if (text[length - 1] != ' ' && text[length - 2] == ' ')words--;
+
                 text[length - 1] = '\0';
                 length--;
                 recalculateLayout();
-                InvalidateRect(hwnd, NULL, FALSE); 
+                InvalidateRect(hwnd, NULL, FALSE);
             }
             else {
                 text[0] = '\0';
@@ -466,25 +490,25 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         }
         // Enter key
         else if (wParam == '\r') {
-                append(text, length, capacity, '\n');
-                recalculateLayout();
-                InvalidateRect(hwnd, NULL, FALSE);
-            
+            append(text, length, capacity, '\n');
+            recalculateLayout();
+            InvalidateRect(hwnd, NULL, FALSE);
+
         }
         // Printable characters
         else if (wParam >= 32 && wParam != 127) {
-                if (wParam == ' ' && length>=2 && text[length-1]!=' ')words++;
-                
-                append(text, length, capacity, (wchar_t)wParam);
-                recalculateLayout();
-                InvalidateRect(hwnd, NULL, FALSE);
-            
+            if (wParam == ' ' && length >= 2 && text[length - 1] != ' ')words++;
+
+            append(text, length, capacity, (wchar_t)wParam);
+            recalculateLayout();
+            InvalidateRect(hwnd, NULL, FALSE);
+
         }
         return 0;
     }
 
     case WM_KEYDOWN: {
-        if (wParam==VK_DELETE) {
+        if (wParam == VK_DELETE) {
             // Delete key pressed, same as backspace logic
             if (length > 0) {
                 text[length - 1] = '\0';
@@ -496,7 +520,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         return 0;
     }
     case WM_TIMER:
-        InvalidateRect(hwnd, NULL, FALSE);        
+        InvalidateRect(hwnd, NULL, FALSE);
         return 0;
     }
 
@@ -505,8 +529,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
 
     //debugging helpers
-    AllocConsole();                                 
-    FILE* f;                                         
+    AllocConsole();
+    FILE* f;
     freopen_s(&f, "CONOUT$", "w", stdout);
     ///////////////////////////////
 
@@ -516,7 +540,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     wc.lpfnWndProc = WndProc;
     wc.hInstance = hInstance;
     wc.lpszClassName = CLASS_NAME;
-    wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1 );
+    wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
 
     RegisterClassW(&wc);
