@@ -10,6 +10,11 @@ wchar_t* text = new wchar_t[capacity];
 unsigned long long length = 0;
 
 
+//
+
+
+
+
 //tracking words
 unsigned int words = 0;
 
@@ -22,6 +27,14 @@ int total_pages = 5;
 int startX = 40;       // left margin
 int startY = 40;       // top margin
 int cursor_width = 1;
+
+int cursorX = startX, cursorY = startY;//cursor coordinates
+unsigned long long cursor_to_text_index = 0;
+//represent the max valid | placement in text
+int maxX = startX;
+int maxY = startY;
+int minX = startX;//constant
+int minY = startY;//can change
 
 void append(wchar_t*& text, unsigned long long& index, unsigned long long& cap, wchar_t c) {
     if (index >= cap - 1) {
@@ -39,11 +52,17 @@ void append(wchar_t*& text, unsigned long long& index, unsigned long long& cap, 
     text[index] = L'\0';
 }
 
+
 //layout
 struct Line {
     unsigned long long start = -1;
     int len = 0;
+    int screenY = startY; //storing y-coordinate of each line
+    int screenX = startX;//diff for each char
+    int offsetX = 1;//character width
 };
+
+
 struct column {
     Line* lines;
 
@@ -366,6 +385,33 @@ void recalculateLayout() {
 
 
 
+//function calculates  screenx,y for index in text buffer
+
+
+//function for inserting inbetween our text buffer
+void insertAt(wchar_t*& text, unsigned long long& index, unsigned long long& capacity, int i,wchar_t c) {
+    //safety for index and capacity
+    if (index >= capacity - 3) {
+        wchar_t* copy = new wchar_t[capacity * 2];
+        for (unsigned long long j = 0; j < index; j++) {
+            copy[j] = text[j];
+        }
+        delete[] text;
+        text = copy;
+        capacity *= 2;
+    }
+
+   //shift text array from right
+   //as text[index] is \0
+    unsigned long long len = index + 1;
+    text[len] = '\0';
+    for (unsigned long long j = len-1; j >i; j--) {
+        text[j] = text[j-1];
+    }
+    text[i] = c;
+    index++;
+}
+
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
     case WM_PAINT: {
@@ -421,12 +467,21 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 // Calculate position
                 x = startX + c * (line_length * columnSpacing);
                 y = startY + l * lineHeight;
-                current_column = c + 1;
+    
+
+
 
                 TextOutW(hdc, x, y, text + start, len);
                 size;
                 GetTextExtentPoint32W(hdc, text + start, len, &size);
                 int lineWidth = size.cx; // width in pixels of len characters
+                int char_width = lineWidth / len;
+
+                //useful for cursor coordinates
+                pages[p].columns[c].lines[l].screenY = y;
+                pages[p].columns[c].lines[l].screenX = x;
+                pages[p].columns[c].lines[l].offsetX = char_width;
+
                 offset += (x + lineWidth);
                 offset -= 10;//padding
 
@@ -446,9 +501,14 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         unsigned long long elapsed_time = current_time - start_time;
 
         offset = offset == 0 ? startX : offset;
+        maxX = offset > maxX ? offset : maxX;
+        maxY = y > maxY ? y : maxY;
+        minY = y < minY ? y : minY;
         //showing periodically
         if (elapsed_time % 2 == 0) {
-            RECT cursorRect = { offset, y,offset + cursor_width, y + lineHeight };
+            
+            RECT cursorRect = { cursorX, cursorY,cursorX + cursor_width, cursorY + lineHeight };
+           // RECT cursorRect = { maxX, maxY,maxX + cursor_width,maxY + lineHeight };
             brush = CreateSolidBrush(RGB(0, 0, 0));
             FillRect(hdc, &cursorRect, brush);
             DeleteObject(brush);
@@ -519,10 +579,66 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         }
         return 0;
     }
-    case WM_TIMER:
+    case WM_TIMER:{
         InvalidateRect(hwnd, NULL, FALSE);
         return 0;
     }
+    //right click(cursor placement)
+    case WM_RBUTTONDOWN:{
+        int x = LOWORD(lParam);
+        int y = HIWORD(lParam);
+        wprintf(L"x: %d ,  y: %d\n", x, y);
+        //check if user is clicking apart from the allocated text place
+        if (x > maxX || y > maxY || x<minX || y<minY)return 0;
+
+
+        //calculate cursor info from line data
+
+        //find the x and y coordinates and fix them according to offset+ScreenX+screenY
+        int p = page_index;
+        bool foundX = false;
+        bool foundY = false;
+        for (int c = 0; c < total_columns; c++) {
+            for (int l = 0; l < total_lines; l++) {
+                int screenY = pages[p].columns[c].lines[l].screenY;
+                wprintf(L"==========INSIDE Y========\nx: %d ,  y: %d, LINE Y: %d\n", x, y,screenY);
+                //check for y first
+                if (screenY>= y-10) {
+                    cursorY = screenY;
+                    foundY = true;
+                    wprintf(L"FOUND\n");
+                }
+                //if y found approximate X
+                if (foundY) {             
+                    int offset =pages[p].columns[c].lines[l].offsetX;
+                    int screenX = pages[p].columns[c].lines[l].screenX;
+                    for (int i = 0; i < pages[p].columns[c].lines[l].len; i++) {
+                        wprintf(L"==========INSIDE X========\nx: %d ,  y: %d, LINE X: %d\n", x, y, screenX+(offset*(i+1)) );
+
+                        if (screenX + (offset * (i + 1)) <= x-10) {
+                            cursorX =x;
+                            foundX = true; break;
+                        }
+                    }
+                }
+                if (foundY && foundX)break;
+            }
+            if (foundY && foundX)break;
+        }
+
+        return 0;
+    }
+    //left click
+    case WM_LBUTTONDOWN:
+    {
+        wprintf(L"LEFT CLICK!\n");
+    }
+    return 0;
+
+
+    }
+
+  
 
     return DefWindowProc(hwnd, msg, wParam, lParam);
 }
