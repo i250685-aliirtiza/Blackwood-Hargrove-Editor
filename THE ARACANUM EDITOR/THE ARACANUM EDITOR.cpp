@@ -10,9 +10,13 @@ wchar_t* text = new wchar_t[capacity];
 unsigned long long length = 0;
 
 
-//
+int lineHeight=0, lineWidth=0;
+
+//checking if we have to append or insert
+bool insert = false;
 
 
+int char_width = 1;
 
 
 //tracking words
@@ -21,8 +25,8 @@ unsigned int words = 0;
 
 //default
 int line_length = 10;
-int total_lines = 20;
-int total_columns = 8;
+int total_lines = 5;
+int total_columns = 3;
 int total_pages = 5;
 int startX = 40;       // left margin
 int startY = 40;       // top margin
@@ -33,8 +37,8 @@ unsigned long long cursor_to_text_index = 0;
 //represent the max valid | placement in text
 int maxX = startX;
 int maxY = startY;
-int minX = startX;//constant
-int minY = startY;//can change
+int minX = startX;
+int minY = startY;
 
 void append(wchar_t*& text, unsigned long long& index, unsigned long long& cap, wchar_t c) {
     if (index >= cap - 1) {
@@ -385,11 +389,26 @@ void recalculateLayout() {
 
 
 
-//function calculates  screenx,y for index in text buffer
+//getters
+void getColumnAndLine(unsigned long long index,int* arr) {
+    for (int p = 0; p <= page_index; p++) {
+        for (int c = 0; c < total_columns; c++) {
+            for (int l = 0; l < total_lines; l++) {
+                if (index >= pages[p].columns[c].lines[l].start && index < pages[p].columns[c].lines[l].start + pages[p].columns[c].lines[l].len) {
+                    arr[0] = c;
+                    arr[1] = l;
+                    break;
+                }
+            }
+        }
+    }
+    
+  }
+
 
 
 //function for inserting inbetween our text buffer
-void insertAt(wchar_t*& text, unsigned long long& index, unsigned long long& capacity, int i,wchar_t c) {
+void insertAt(wchar_t*& text, unsigned long long& index, unsigned long long& capacity, unsigned long long& i,wchar_t c) {
     //safety for index and capacity
     if (index >= capacity - 3) {
         wchar_t* copy = new wchar_t[capacity * 2];
@@ -410,6 +429,34 @@ void insertAt(wchar_t*& text, unsigned long long& index, unsigned long long& cap
     }
     text[i] = c;
     index++;
+
+    int arr[2];
+    getColumnAndLine(i, arr);
+    i++;
+    int range = pages[page_index].columns[arr[0]].lines[arr[1]].start + pages[page_index].columns[arr[0]].lines[arr[1]].len-1;
+
+    if(i<range && c!='\n')
+    cursorX += char_width;
+
+
+    else {
+        if (arr[1] < total_lines - 1) {
+            arr[1] += 1;
+            cursorY = pages[page_index].columns[arr[0]].lines[arr[1]].screenY;
+            cursorX = pages[page_index].columns[arr[0]].lines[arr[1]].screenX;
+        }
+        else if (arr[0] < total_columns - 1) {
+            arr[0] += 1;
+            arr[1] = 0;
+            cursorY = pages[page_index].columns[arr[0]].lines[arr[1]].screenY;
+            cursorX = pages[page_index].columns[arr[0]].lines[arr[1]].screenX;
+        }
+        else {
+            cursorY = startY;
+            cursorX = startX;
+        }
+    }
+    
 }
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
@@ -438,10 +485,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         // Get line height
         TEXTMETRICW tm;
         GetTextMetrics(hdc, &tm);
-        int lineHeight = tm.tmHeight + tm.tmExternalLeading;
+        lineHeight = tm.tmHeight + tm.tmExternalLeading;
         SIZE size;
         GetTextExtentPoint32W(hdc, text, length, &size);
-        int lineWidth = size.cx; // width in pixels of len characters
+        lineWidth = size.cx; // width in pixels of len characters
         // Starting positions
         float columnSpacing = 14; // horizontal gap between columns
 
@@ -475,7 +522,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 size;
                 GetTextExtentPoint32W(hdc, text + start, len, &size);
                 int lineWidth = size.cx; // width in pixels of len characters
-                int char_width = lineWidth / len;
+                char_width = lineWidth / len;
 
                 //useful for cursor coordinates
                 pages[p].columns[c].lines[l].screenY = y;
@@ -550,7 +597,13 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         }
         // Enter key
         else if (wParam == '\r') {
+            if (insert) {
+                insertAt(text, length, capacity, cursor_to_text_index, '\n');
+            }
+            else
             append(text, length, capacity, '\n');
+
+
             recalculateLayout();
             InvalidateRect(hwnd, NULL, FALSE);
 
@@ -559,7 +612,12 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         else if (wParam >= 32 && wParam != 127) {
             if (wParam == ' ' && length >= 2 && text[length - 1] != ' ')words++;
 
+            if (insert) {
+                insertAt(text, length, capacity,cursor_to_text_index ,(wchar_t)wParam);
+            }
+            else
             append(text, length, capacity, (wchar_t)wParam);
+
             recalculateLayout();
             InvalidateRect(hwnd, NULL, FALSE);
 
@@ -590,8 +648,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         wprintf(L"x: %d ,  y: %d\n", x, y);
         //check if user is clicking apart from the allocated text place
         if (x > maxX || y > maxY || x<minX || y<minY)return 0;
-
-
+        
         //calculate cursor info from line data
 
         //find the x and y coordinates and fix them according to offset+ScreenX+screenY
@@ -601,22 +658,35 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         for (int c = 0; c < total_columns; c++) {
             for (int l = 0; l < total_lines; l++) {
                 int screenY = pages[p].columns[c].lines[l].screenY;
-                wprintf(L"==========INSIDE Y========\nx: %d ,  y: %d, LINE Y: %d\n", x, y,screenY);
                 //check for y first
                 if (screenY>= y-10) {
                     cursorY = screenY;
                     foundY = true;
-                    wprintf(L"FOUND\n");
                 }
                 //if y found approximate X
                 if (foundY) {             
                     int offset =pages[p].columns[c].lines[l].offsetX;
                     int screenX = pages[p].columns[c].lines[l].screenX;
                     for (int i = 0; i < pages[p].columns[c].lines[l].len; i++) {
-                        wprintf(L"==========INSIDE X========\nx: %d ,  y: %d, LINE X: %d\n", x, y, screenX+(offset*(i+1)) );
-
+                   
                         if (screenX + (offset * (i + 1)) <= x-10) {
                             cursorX =x;
+                            if (cursorX >= maxX - 2)insert = false;
+                            else {
+                                insert = true;
+                                //calculate index
+                                cursor_to_text_index=pages[p].columns[c].lines[l].start;//start of line
+                                //move wrt character
+                                int jump = 0;
+                                int temp = pages[p].columns[c].lines[l].screenX;
+                                while (temp <= cursorX) {
+                                    temp += char_width;
+                                    jump += 1;
+                                }
+                                cursor_to_text_index += jump-1;
+                             //   wprintf(L"index: %d\n", cursor_to_text_index);
+                                
+                            }
                             foundX = true; break;
                         }
                     }
