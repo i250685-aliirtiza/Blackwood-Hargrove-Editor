@@ -10,13 +10,15 @@ wchar_t* text = new wchar_t[capacity];
 unsigned long long length = 0;
 
 
+int withoutSpaces = 0;
+
 int lineHeight=0, lineWidth=0;
 
 //checking if we have to append or insert
 bool insert = false;
 
 
-int char_width = 1;
+int char_width = 13;
 
 
 //tracking words
@@ -24,9 +26,9 @@ unsigned int words = 0;
 
 
 //default
-int line_length = 10;
-int total_lines = 5;
-int total_columns = 3;
+int line_length = 40;
+int total_lines = 20; //22 is the limit. as after that footer won't be visible
+int total_columns = 2;
 int total_pages = 5;
 int startX = 40;       // left margin
 int startY = 40;       // top margin
@@ -39,6 +41,99 @@ int maxX = startX;
 int maxY = startY;
 int minX = startX;
 int minY = startY;
+
+
+int minLineLength = 5;
+int minTotalLines = 1;
+int minTotalColumns = 1;
+
+//max line_length
+const int MAX_CAPACITY = 90;
+
+
+//clamping to max possible if user selects large values
+void verifyLayout(int& total_lines, int& line_length, int& total_columns) {
+    //checking if smaller than minimum
+    if (total_columns < minTotalColumns) total_columns = minTotalColumns;
+    if (total_lines < minTotalLines) total_lines = minTotalLines;
+    if (line_length < minLineLength) line_length = minLineLength;
+
+    //more than 22 lines go outside window
+    if (total_lines > 22) total_lines = 22;
+
+
+    //reducing columns
+    while (total_columns > 1 && line_length * total_columns > MAX_CAPACITY) {
+        total_columns--;
+    }
+
+    //if after reducing columns line length is large, reducing line length
+    while (line_length > minLineLength && line_length * total_columns > MAX_CAPACITY) {
+        line_length--;
+    }
+}
+
+
+
+//helper int to char, for words
+void convertToStr(int num,wchar_t arr[]) {
+    if (num == 0) {
+        arr[0] = L'0';
+        arr[1] = L'\0';
+        return;
+    }
+
+
+    int i = 0;
+    while (num) {
+        arr[i] = num % 10 +48;
+        num /= 10;
+        i++;
+    }
+    arr[i] = L'\0';
+
+    //reverse
+    for (int j = 0; j < i / 2; j++) {
+        wchar_t temp = arr[j];
+        arr[j] = arr[i - 1 - j];
+        arr[i - 1 - j] = temp;
+    }
+
+}
+
+int merge(const wchar_t* read,const wchar_t* read2,wchar_t* write) {
+    int len = 0;
+    while (*read) {
+        *write = *read; len++;
+        write++; read++;
+    }
+    while (*read2) {
+        *write = *read2; len++;
+        write++; read2++;
+    }
+    *write = '\0';
+
+
+    return len;
+
+}
+
+void concatenate(const wchar_t* read1, const wchar_t* read2, const wchar_t* read3, wchar_t* write) {
+    while (*read1) {
+        *write = *read1;
+        write++; read1++;
+    }
+    while (*read2) {
+        *write = *read2;
+        write++; read2++;
+    }
+    while (*read3) {
+        *write = *read3;
+        write++; read3++;
+    }
+    *write = L'\0';
+}
+
 
 void append(wchar_t*& text, unsigned long long& index, unsigned long long& cap, wchar_t c) {
     if (index >= cap - 1) {
@@ -397,14 +492,13 @@ void getColumnAndLine(unsigned long long index,int* arr) {
                 if (index >= pages[p].columns[c].lines[l].start && index < pages[p].columns[c].lines[l].start + pages[p].columns[c].lines[l].len) {
                     arr[0] = c;
                     arr[1] = l;
-                    break;
+                    return;
                 }
             }
         }
     }
     
   }
-
 
 
 //function for inserting inbetween our text buffer
@@ -438,7 +532,7 @@ void insertAt(wchar_t*& text, unsigned long long& index, unsigned long long& cap
     if(i<range && c!='\n')
     cursorX += char_width;
 
-
+    //change of line/column/width accordingly
     else {
         if (arr[1] < total_lines - 1) {
             arr[1] += 1;
@@ -458,6 +552,18 @@ void insertAt(wchar_t*& text, unsigned long long& index, unsigned long long& cap
     }
     
 }
+
+
+
+
+
+
+
+//function for deletion inbetween our text buffer
+void deleteAt(wchar_t*& text, unsigned long long& index, unsigned long long& i) {
+    return;
+}
+
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
@@ -514,9 +620,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 // Calculate position
                 x = startX + c * (line_length * columnSpacing);
                 y = startY + l * lineHeight;
-    
-
-
+ 
 
                 TextOutW(hdc, x, y, text + start, len);
                 size;
@@ -560,6 +664,72 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             FillRect(hdc, &cursorRect, brush);
             DeleteObject(brush);
         }
+        
+        //SHOWING FOOTER
+
+        int footerY = lineHeight * total_lines;
+        footerY += startY;
+        //offset
+        footerY += 30;
+
+        // Create smaller font for footer
+        HFONT footerFont = CreateFontW(
+            14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+            CLEARTYPE_QUALITY, DEFAULT_PITCH, L"Courier New"
+        );
+
+        // Switch to footer font
+        HFONT oldFooterFont = (HFONT)SelectObject(hdc, footerFont);
+
+        // Draw footer for total words, characters and characters without spaces
+        wchar_t final[300];
+        wchar_t info1[100];
+        wchar_t info2[100];
+        wchar_t info3[100];
+
+        int len = 0;
+        const wchar_t* str2 = L"Total Words: ";
+        wchar_t arr[20];
+        convertToStr(words, arr);
+        len += merge(str2, arr,info1);
+
+        str2 = L"  Total Characters: ";
+        convertToStr(length, arr);
+        len += merge(str2, arr, info2);
+
+        str2 = L"  Total Characters without sapaces: ";
+        convertToStr(withoutSpaces, arr);
+        len += merge(str2, arr, info3); 
+        
+
+        concatenate(info1, info2, info3, final);
+
+        TextOutW(hdc, startX, footerY,final,len);
+
+        //also page numbering, showing under middle column.
+        int val = total_columns * line_length;
+        int temp = startX;
+        temp = val/ 2;
+        temp *= char_width;
+        
+        int page_numberX = temp;
+        footerY -= 20;
+        len = 0;
+        str2 = L"------";
+        convertToStr(page_index + 1, arr);
+        concatenate(str2, arr, str2, final);
+        len = getLen(final) - 1;
+        TextOutW(hdc, page_numberX, footerY, final, len);
+
+
+        // Restore original font
+        SelectObject(hdc, oldFooterFont);
+
+        // Delete footer font
+        DeleteObject(footerFont);
+
+
 
         // Restore and cleanup
         SelectObject(hdc, oldFont);
@@ -580,21 +750,39 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         // Backspace
         if (wParam == '\b') {
 
-            if (length > 1) {
-                if (text[length - 1] != ' ' && text[length - 2] == ' ')words--;
+        //no need of deletion
+        if(length<=1) {
+            withoutSpaces = 0;
+            text[0] = '\0';
+            words = 0;
+            recalculateLayout();
+            InvalidateRect(hwnd, NULL, FALSE);
+        }
+        //deletion required 
+        else {
+            //left shift logic
+            if (insert) {
+                //IMPLEMENTATION NEEDED
+                deleteAt(text, length, cursor_to_text_index);
 
+                recalculateLayout();
+                InvalidateRect(hwnd, NULL, FALSE);
+            }
+            //other wise simple deletion from end
+            else {
+                withoutSpaces--;
+                if (text[length - 1] != ' ' && text[length - 2] == ' ')words--;
                 text[length - 1] = '\0';
                 length--;
                 recalculateLayout();
                 InvalidateRect(hwnd, NULL, FALSE);
+
+
             }
-            else {
-                text[0] = '\0';
-                words = 0;
-                recalculateLayout();
-                InvalidateRect(hwnd, NULL, FALSE);
-            }
+
         }
+
+     }
         // Enter key
         else if (wParam == '\r') {
             if (insert) {
@@ -611,6 +799,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         // Printable characters
         else if (wParam >= 32 && wParam != 127) {
             if (wParam == ' ' && length >= 2 && text[length - 1] != ' ')words++;
+
+            if (wParam != ' ')withoutSpaces++;
 
             if (insert) {
                 insertAt(text, length, capacity,cursor_to_text_index ,(wchar_t)wParam);
@@ -668,15 +858,15 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                     int offset =pages[p].columns[c].lines[l].offsetX;
                     int screenX = pages[p].columns[c].lines[l].screenX;
                     for (int i = 0; i < pages[p].columns[c].lines[l].len; i++) {
-                   
-                        if (screenX + (offset * (i + 1)) <= x-10) {
+                        //approximation wrt start of line
+                        if (screenX + (char_width * (i + 1)) <= x-10) {
                             cursorX =x;
                             if (cursorX >= maxX - 2)insert = false;
                             else {
                                 insert = true;
                                 //calculate index
                                 cursor_to_text_index=pages[p].columns[c].lines[l].start;//start of line
-                                //move wrt character
+                                //move from start of line wrt character width
                                 int jump = 0;
                                 int temp = pages[p].columns[c].lines[l].screenX;
                                 while (temp <= cursorX) {
@@ -684,6 +874,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                                     jump += 1;
                                 }
                                 cursor_to_text_index += jump-1;
+                                //check if it is in valid range
+                                int max = pages[p].columns[c].lines[l].start + pages[p].columns[c].lines[l].len;
+                                cursor_to_text_index = cursor_to_text_index > max ? cursor_to_text_index = max - 1 : cursor_to_text_index;
                              //   wprintf(L"index: %d\n", cursor_to_text_index);
                                 
                             }
