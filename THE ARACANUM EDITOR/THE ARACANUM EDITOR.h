@@ -1,7 +1,7 @@
 #pragma once
 #include "resource.h"
 #include<windows.h>
-
+#include <cstdio>
 //layout
 struct Line {
     unsigned long long start = -1;
@@ -126,6 +126,12 @@ private:
     int char_width, lineHeight, lineWidth;
     int cursorX, cursorY;
     unsigned long long cursor_to_text_index;
+    //represent the max valid | placement in text
+    int maxX = startX;
+    int maxY = startY;
+    int minX = startX;
+    int minY = startY;
+
     int words, withoutSpaces;
     bool insert;
     int minLineLength;
@@ -209,6 +215,40 @@ public:
     }
     unsigned long long& getLength()  {
         return length;
+    }
+
+    unsigned long long& getCursorIndex() {
+        return cursor_to_text_index;
+    }
+    int& getmaxX() {
+        return maxX;
+    }
+    int& getmaxY() {
+        return maxY;
+    }
+    int& getminX() {
+        return minX;
+    }
+    int& getminY() {
+        return minY;
+    }
+    int& getstartX() {
+        return startX;
+    }
+    int& getstartY() {
+        return startY;
+    }
+    int& getcursorX() {
+        return cursorX;
+    }
+    int& getcursorY() {
+        return cursorY;
+    }
+    int& getcharWidth() {
+        return char_width;
+    }
+    bool& getInsert() {
+        return insert;
     }
 
     //clamping to max possible if user selects large values
@@ -296,7 +336,7 @@ public:
     //filling our layout
     void recalculateLayout() {
         // Read through `text`, break it into lines/columns/pages
-
+        words = 0;
         // Clear previous layout
         for (int p = 0; p <= page_index; p++) {
             for (int c = 0; c < total_columns; c++) {
@@ -327,7 +367,7 @@ public:
 
             //if -1 go to next line/column/page whatever is in place
             if (len == -1) {
-
+                words++;
                 pages[p].getColumns()[c].getLine()[l].len = total;
                 //move to next line
                 if (l < total_lines - 1) {
@@ -368,6 +408,7 @@ public:
             total += len;
             //if it fits
             if (total <= line_length) {
+                words++;
                 if (pages[p].getColumns()[c].getLine()[l].start == -1) {
                     pages[p].getColumns()[c].getLine()[l].start = track;
                 }
@@ -378,7 +419,7 @@ public:
             }
             //else wrap
             else {
-
+                words++;
                 // Save current line without this word
                 if (pages[p].getColumns()[c].getLine()[l].start != -1) {
                     pages[p].getColumns()[c].getLine()[l].len = total - len;
@@ -483,7 +524,7 @@ public:
 
 
         }
-
+        if (length == 0)words = 0;
     }
   
 
@@ -492,7 +533,9 @@ public:
         for (int p = 0; p <= page_index; p++) {
             for (int c = 0; c < total_columns; c++) {
                 for (int l = 0; l < total_lines; l++) {
-                    if (index >= pages[p].columns[c].lines[l].start && index < pages[p].columns[c].lines[l].start + pages[p].columns[c].lines[l].len) {
+                    unsigned long long start = pages[p].getColumns()[c].getLine()[l].start;
+                    unsigned long long len = pages[p].getColumns()[c].getLine()[l].len;
+                    if (index >= start && index < start + len) {
                         arr[0] = c;
                         arr[1] = l;
                         return;
@@ -505,11 +548,12 @@ public:
 
 
     //function for inserting inbetween our text buffer
-    void insertAt(wchar_t*& text, unsigned long long& index, unsigned long long& capacity, unsigned long long& i, wchar_t c) {
+    void insertAt(unsigned long long& i, wchar_t c) {
+       
         //safety for index and capacity
-        if (index >= capacity - 3) {
+        if (length >= capacity - 3) {
             wchar_t* copy = new wchar_t[capacity * 2];
-            for (unsigned long long j = 0; j < index; j++) {
+            for (unsigned long long j = 0; j < length; j++) {
                 copy[j] = text[j];
             }
             delete[] text;
@@ -517,42 +561,45 @@ public:
             capacity *= 2;
         }
 
+        //starting column,line
+        int CL_old[2];
+        getColumnAndLine(i, CL_old);
+     
         //shift text array from right
         //as text[index] is \0
-        unsigned long long len = index + 1;
+        unsigned long long len = length + 1;
         text[len] = '\0';
         for (unsigned long long j = len - 1; j > i; j--) {
             text[j] = text[j - 1];
         }
         text[i] = c;
-        index++;
-
-        int arr[2];
-        getColumnAndLine(i, arr);
+        length++;
         i++;
-        int range = pages[page_index].columns[arr[0]].lines[arr[1]].start + pages[page_index].columns[arr[0]].lines[arr[1]].len - 1;
 
-        if (i < range && c != '\n')
+        recalculateLayout();
+        //increment cursor
+        int CL_new[2];
+        getColumnAndLine(i, CL_new);
+
+        wprintf(L"=====OLD i: %d=====\nColumn: %d , Line: %d\n", i-1,CL_old[0], CL_old[1]);
+
+        wprintf(L"=====NEW i: %d=====\nColumn: %d , Line: %d\n",i, CL_new[0], CL_new[1]);
+        //if line and column both same
+        if (CL_old[0] == CL_new[0] && CL_old[1] == CL_new[1]) {
             cursorX += char_width;
-
-        //change of line/column/width accordingly
-        else {
-            if (arr[1] < total_lines - 1) {
-                arr[1] += 1;
-                cursorY = pages[page_index].columns[arr[0]].lines[arr[1]].screenY;
-                cursorX = pages[page_index].columns[arr[0]].lines[arr[1]].screenX;
-            }
-            else if (arr[0] < total_columns - 1) {
-                arr[0] += 1;
-                arr[1] = 0;
-                cursorY = pages[page_index].columns[arr[0]].lines[arr[1]].screenY;
-                cursorX = pages[page_index].columns[arr[0]].lines[arr[1]].screenX;
-            }
-            else {
-                cursorY = startY;
-                cursorX = startX;
-            }
+    
         }
+        //if change of page
+        else if (CL_old[0] == total_columns - 1 && CL_new[0] == 0) {
+            cursorX = startX;
+            cursorY = startY;
+        }
+        //if change of column/line
+        else{
+            cursorX = pages[page_index].getColumns()[CL_new[0]].getLine()[CL_new[1]].screenX;
+            cursorY = pages[page_index].getColumns()[CL_new[0]].getLine()[CL_new[1]].screenY;
+        }
+
 
     }
 

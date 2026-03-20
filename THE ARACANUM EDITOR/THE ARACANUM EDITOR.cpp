@@ -4,24 +4,9 @@
 #include<ctime>
 
 unsigned long long start_time = time(NULL);
-
-//checking if we have to append or insert
-bool insert = false;
-int char_width = 13;
-int startX = 40;       // left margin
-int startY = 40;       // top margin
 int cursor_width = 1;
-int cursorX = startX, cursorY = startY;//cursor coordinates
-unsigned long long cursor_to_text_index = 0;
-//represent the max valid | placement in text
-int maxX = startX;
-int maxY = startY;
-int minX = startX;
-int minY = startY;
 
-
-
-//helper int to char, for words
+//helper int to char, for words, total chars etc
 void convertToStr(int num, wchar_t arr[]) {
     if (num == 0) {
         arr[0] = L'0';
@@ -118,7 +103,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         bool filled = false;
         unsigned long long track = 0;
-        float x = startX, y = startY;
+        float x = obj.getstartX(), y = obj.getstartY();
         int current_column = 0;
         float offset = 0;
         int p = obj.getPageIndex();
@@ -136,20 +121,20 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 offset = 0;
 
                 // Calculate position
-                x = startX + c * (obj.getLineLength() * columnSpacing);
-                y = startY + l * obj.getLineHeight();
+                x = obj.getstartX() + c * (obj.getLineLength() * columnSpacing);
+                y = obj.getstartY() + l * obj.getLineHeight();
 
 
                 TextOutW(hdc, x, y, obj.getText() + start, len);
                 size;
                 GetTextExtentPoint32W(hdc, obj.getText() + start, len, &size);
                 obj.getLineWidth() = size.cx; // width in pixels of len characters
-                char_width = obj.getLineWidth() / len;
+                obj.getcharWidth() = obj.getLineWidth() / len;
 
                 //useful for cursor coordinates
                 obj.getPages()[p].getColumns()[c].getLine()[l].screenY = y;
                 obj.getPages()[p].getColumns()[c].getLine()[l].screenX = x;
-                obj.getPages()[p].getColumns()[c].getLine()[l].offsetX = char_width;
+                obj.getPages()[p].getColumns()[c].getLine()[l].offsetX = obj.getcharWidth();
 
                 offset += (x + obj.getLineWidth());
                 offset -= 10;//padding
@@ -169,15 +154,15 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         unsigned long long current_time = time(NULL);
         unsigned long long elapsed_time = current_time - start_time;
 
-        offset = offset == 0 ? startX : offset;
-        maxX = offset > maxX ? offset : maxX;
-        maxY = y > maxY ? y : maxY;
-        minY = y < minY ? y : minY;
+        offset = offset == 0 ? obj.getstartX() : offset;
+        obj.getmaxX() = offset > obj.getmaxX() ? offset : obj.getmaxX();
+        obj.getmaxY() = y > obj.getmaxY() ? y : obj.getmaxY();
+        obj.getminY() = y < obj.getminY() ? y : obj.getminY();
         //showing periodically
         if (elapsed_time % 2 == 0) {
 
-            RECT cursorRect = { cursorX, cursorY,cursorX + cursor_width, cursorY + obj.getLineHeight() };
-            // RECT cursorRect = { maxX, maxY,maxX + cursor_width,maxY + obj.getLineHeight() };
+            RECT cursorRect = { obj.getcursorX(), obj.getcursorY(),obj.getcursorX() + cursor_width, obj.getcursorY() + obj.getLineHeight() };
+            // RECT cursorRect = { obj.getmaxX(), obj.getmaxY(),obj.getmaxX() + cursor_width,obj.getmaxY() + obj.getLineHeight() };
             brush = CreateSolidBrush(RGB(0, 0, 0));
             FillRect(hdc, &cursorRect, brush);
             DeleteObject(brush);
@@ -186,7 +171,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         //SHOWING FOOTER
 
         int footerY = obj.getLineHeight() * obj.getTotalLines();
-        footerY += startY;
+        footerY += obj.getstartY();
         //offset
         footerY += 30;
 
@@ -223,13 +208,13 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         concatenate(info1, info2, info3, final);
 
-        TextOutW(hdc, startX, footerY, final, len);
+        TextOutW(hdc, obj.getstartX(), footerY, final, len);
 
         //also page numbering, showing under middle column.
         int val = obj.getTotalColumns() * obj.getLineLength();
-        int temp = startX;
+        int temp = obj.getstartX();
         temp = val / 2;
-        temp *= char_width;
+        temp *= obj.getcharWidth();
 
         int page_numberX = temp;
         footerY -= 20;
@@ -267,6 +252,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
             //no need of deletion
             if (obj.getLength() <= 1) {
+                obj.getLength() = 0;
                 obj.getWithoutSp() = 0;
                 obj.getText()[0] = '\0';
                 obj.getTotalWords() = 0;
@@ -276,7 +262,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             //deletion required 
             else {
                 //left shift logic
-                if (insert) {
+                if (obj.getInsert()) {
                     //IMPLEMENTATION NEEDED
                     //deleteAt(obj.getText(), length, cursor_to_obj.getText()_index);
 
@@ -286,7 +272,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 //other wise simple deletion from end
                 else {
                     obj.getWithoutSp()--;
-                    if (obj.getText()[obj.getLength() - 1] != ' ' && obj.getText()[obj.getLength() - 2] == ' ')obj.getTotalWords()--;
                     obj.getText()[obj.getLength() - 1] = '\0';
                     obj.getLength()--;
                     obj.recalculateLayout();
@@ -300,8 +285,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         }
         // Enter key
         else if (wParam == '\r') {
-            if (insert) {
-                // insertAt(obj.getText(), obj.getLength(), capacity, cursor_to_obj.getText()_index, '\n');
+            if (obj.getInsert()) {
+                obj.insertAt(obj.getCursorIndex(), '\n');
             }
             else
                 obj.append('\n');
@@ -313,12 +298,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         }
         // Printable characters
         else if (wParam >= 32 && wParam != 127) {
-            if (wParam == ' ' && obj.getLength() >= 2 && obj.getText()[obj.getLength() - 1] != ' ')obj.getTotalWords()++;
-
             if (wParam != ' ')obj.getWithoutSp()++;
-
-            if (insert) {
-                // insertAt(obj.getText(), length, capacity, cursor_to_obj.getText()_index, (wchar_t)wParam);
+            if (obj.getInsert()) {
+                obj.insertAt(obj.getCursorIndex(), (wchar_t)wParam);
             }
             else
                 obj.append((wchar_t)wParam);
@@ -352,7 +334,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         int y = HIWORD(lParam);
         wprintf(L"x: %d ,  y: %d\n", x, y);
         //check if user is clicking apart from the allocated text place
-        if (x > maxX || y > maxY || x < minX || y < minY)return 0;
+        if (x > obj.getmaxX() || y > obj.getmaxY() || x < obj.getminX() || y < obj.getminY())return 0;
 
         //calculate cursor info from line data
 
@@ -365,7 +347,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 int screenY = obj.getPages()[p].getColumns()[c].getLine()[l].screenY;
                 //check for y first
                 if (screenY >= y - 10) {
-                    cursorY = screenY;
+                    obj.getcursorY() = screenY;
                     foundY = true;
                 }
                 //if y found approximate X
@@ -374,25 +356,23 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                     int screenX = obj.getPages()[p].getColumns()[c].getLine()[l].screenX;
                     for (int i = 0; i < obj.getPages()[p].getColumns()[c].getLine()[l].len; i++) {
                         //approximation wrt start of line
-                        if (screenX + (char_width * (i + 1)) <= x - 10) {
-                            cursorX = x;
-                            if (cursorX >= maxX - 2)insert = false;
+                        if (screenX + (obj.getcharWidth() * (i + 1)) <= x - 10) {
+                            obj.getcursorX() = x;
+                            if (obj.getcursorX() == obj.getmaxX())obj.getInsert() = false;
                             else {
-                                insert = true;
+                                obj.getInsert() = true;
                                 //calculate index
-                                cursor_to_text_index = obj.getPages()[p].getColumns()[c].getLine()[l].start;//start of line
+                                obj.getCursorIndex() = obj.getPages()[p].getColumns()[c].getLine()[l].start;//start of line
                                 //move from start of line wrt character width
                                 int jump = 0;
                                 int temp = obj.getPages()[p].getColumns()[c].getLine()[l].screenX;
-                                while (temp <= cursorX) {
-                                    temp += char_width;
+                                while (temp <= obj.getcursorX()) {
+                                    temp += obj.getcharWidth();
                                     jump += 1;
                                 }
-                                cursor_to_text_index += jump - 1;
-                                //check if it is in valid range
-                                int max = obj.getPages()[p].getColumns()[c].getLine()[l].start + obj.getPages()[p].getColumns()[c].getLine()[l].len;
-                                cursor_to_text_index = cursor_to_text_index > max ? cursor_to_text_index = max - 1 : cursor_to_text_index;
-                                //   wprintf(L"index: %d\n", cursor_to_text_index);
+                                obj.getCursorIndex() += jump - 1;
+                                                       
+                                //   wprintf(L"index: %d\n", obj.getCursorIndex());
 
                             }
                             foundX = true; break;
@@ -406,7 +386,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         return 0;
     }
-                       //left click
+   //left click
     case WM_LBUTTONDOWN:
     {
         wprintf(L"LEFT CLICK!\n");

@@ -133,7 +133,6 @@
     <ClInclude Include="THE ARACANUM EDITOR.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="dummy.cpp" />
     <ClCompile Include="THE ARACANUM EDITOR.cpp" />
   </ItemGroup>
   <ItemGroup>
