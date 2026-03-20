@@ -5,12 +5,23 @@
 
 unsigned long long start_time = time(NULL);
 
+
+
+
 //checking if we have to append or insert
 bool insert = false;
+
+
 int char_width = 13;
+
+
+
+
+
 int startX = 40;       // left margin
 int startY = 40;       // top margin
 int cursor_width = 1;
+
 int cursorX = startX, cursorY = startY;//cursor coordinates
 unsigned long long cursor_to_text_index = 0;
 //represent the max valid | placement in text
@@ -81,6 +92,7 @@ void concatenate(const wchar_t* read1, const wchar_t* read2, const wchar_t* read
 }
 
 
+
 Editor obj;
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
@@ -111,7 +123,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         GetTextMetrics(hdc, &tm);
         obj.getLineHeight() = tm.tmHeight + tm.tmExternalLeading;
         SIZE size;
-        GetTextExtentPoint32W(hdc, obj.getText(), obj.getLength(), &size);
+        GetTextExtentPoint32W(hdc,obj.getText(), obj.getLength(), &size);
         obj.getLineWidth() = size.cx; // width in pixels of len characters
         // Starting positions
         float columnSpacing = 14; // horizontal gap between columns
@@ -301,7 +313,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         // Enter key
         else if (wParam == '\r') {
             if (insert) {
-                // insertAt(obj.getText(), obj.getLength(), capacity, cursor_to_obj.getText()_index, '\n');
+               // insertAt(obj.getText(), obj.getLength(), capacity, cursor_to_obj.getText()_index, '\n');
             }
             else
                 obj.append('\n');
@@ -318,10 +330,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             if (wParam != ' ')obj.getWithoutSp()++;
 
             if (insert) {
-                // insertAt(obj.getText(), length, capacity, cursor_to_obj.getText()_index, (wchar_t)wParam);
+               // insertAt(obj.getText(), length, capacity, cursor_to_obj.getText()_index, (wchar_t)wParam);
             }
             else
-                obj.append((wchar_t)wParam);
+               obj.append((wchar_t)wParam);
 
             obj.recalculateLayout();
             InvalidateRect(hwnd, NULL, FALSE);

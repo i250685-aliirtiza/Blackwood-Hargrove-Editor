@@ -32,6 +32,9 @@
     <ClCompile Include="THE ARACANUM EDITOR.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="dummy.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="THE ARACANUM EDITOR.rc">
