@@ -323,8 +323,100 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         return 0;
 
     case WM_CHAR: {
+        //1 is ascii for ctrl+A
+        if (wParam == 1) {
+            obj.selectAll();
+            InvalidateRect(hwnd, NULL, FALSE);
+            break;
+        }
+        //PASTE TEXT
+        //16 is ascii for ctrl+P
+        if (wParam == 16) {
+            // Access clipboard and get text into wchar_t* temp
+            if (OpenClipboard(hwnd))
+            {
+                HANDLE hData = GetClipboardData(CF_UNICODETEXT); // get clipboard data
+                if (hData)
+                {
+                    wchar_t* pText = (wchar_t*)GlobalLock(hData); // lock the memory to get pointer
+                    if (pText)
+                    {
+                        //find length
+                        int  len = 0; 
+                        wchar_t* read = pText;
+                        while (*read) {
+                            read++; len++;
+                        }
+                        // Allocate array to store clipboard content
+                        wchar_t* temp = new wchar_t[len + 1];
+
+                        // Copy clipboard content
+                        for (size_t i = 0; i <= len; i++)
+                        {
+                            temp[i] = pText[i];
+                        }
+
+                        //if text selected
+                        if (obj.getselectionState()) {
+                            //delete selected text
+                            obj.deletePortion();
+                            InvalidateRect(hwnd, NULL, FALSE);
+                        }
+                        //insert to buffer
+                        for (int i = 0; i < len; i++) {
+                                obj.insertAt(obj.getCursorIndex(), temp[i]);
+                                obj.recalculateLayout();
+                                InvalidateRect(hwnd, NULL, FALSE);
+                            }         
+                        
+                        delete[] temp;
+                    }
+                }
+                CloseClipboard();
+            }
+            break;
+        }
+        
+        //3 i ascii for ctrl +c
+        if (wParam == 3){
+            if (OpenClipboard(hwnd))
+            {
+                EmptyClipboard();
+
+               
+                int len = obj.getselectionStart() - obj.getselectionEnd()+1;// number of characters (without null)
+                if (len <=0) {
+                    break;
+                }
+
+
+                // 2. Allocate memory (include null terminator)
+                HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, (len + 1) * sizeof(wchar_t));
+
+                if (hMem)
+                {
+                    // 3. Copy data into allocated memory
+                    wchar_t* pMem = (wchar_t*)GlobalLock(hMem);
+                    unsigned long long index = 0;
+                    for (unsigned long long i = obj.getselectionEnd(); i <=obj.getselectionStart(); i++) {
+                        pMem[index] = obj.getText()[i];
+                        wprintf(L"%c", pMem[index]);
+                        index++;
+                    }
+                    pMem[index] = L'\0';
+
+                    GlobalUnlock(hMem);
+
+                    // 4. Send to clipboard
+                    SetClipboardData(CF_UNICODETEXT, hMem);
+                }
+
+                CloseClipboard();
+            }
+        }
+
         // Backspace
-        if (wParam == '\b') {
+        else if (wParam == '\b') {
 
             //no need of deletion
             if (obj.getLength() <= 1) {
@@ -429,7 +521,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         wprintf(L"x: %d ,  y: %d\n", x, y);
 
         generateCursorInfo(x, y, obj.getCursorIndex(), obj.getcursorX(), obj.getcursorY());
-       
+        
        
         return 0;
     }
@@ -516,7 +608,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         CW_USEDEFAULT, CW_USEDEFAULT, 1440, 720,
         NULL, NULL, hInstance, NULL
     );
-
+                                                                            
     if (!hwnd) return 0;
 
     ShowWindow(hwnd, nCmdShow);

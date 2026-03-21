@@ -632,6 +632,8 @@ public:
 
     //function for inserting in our text buffer
     void insertAt(unsigned long long& i, wchar_t c) {
+        if (i > length)i = length;
+
         wprintf(L"index: %d\n", i);
         if (i == length) {
             append(c);
@@ -804,6 +806,28 @@ public:
         recalculateLayout();
     }
     
+
+    //select all
+    void selectAll() {
+        recalculateLayout();
+        end_selection = pages[page_index].getColumns()[0].getLine()[0].start;
+        int c = total_columns - 1;
+        int l = total_lines - 1;
+        //find max line written
+        while (pages[page_index].getColumns()[c].getLine()[l].start== -1) {
+            if (l > 0)l--;
+
+            else {
+                l = total_lines - 1;
+                c--;
+            }
+        }
+        start_selection = pages[page_index].getColumns()[c].getLine()[l].start+ pages[page_index].getColumns()[c].getLine()[l].len;
+        start_selection-=2;
+        selectionState = true;
+
+        wprintf(L"start:  %d , end: %d\n", end_selection, start_selection);
+    }
 
 };
 
