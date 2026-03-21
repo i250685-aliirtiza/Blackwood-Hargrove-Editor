@@ -13,7 +13,6 @@ struct Line {
     int offsetX = 1;//character width
 };
 
-
 class column {
 private:
     Line* lines;
@@ -72,7 +71,7 @@ public:
         return total_columns;
     }
 
-    page(int c = 3, int l = 2) : total_columns(c) ,total_lines(l) {
+    page(int c = 3, int l = 10) : total_columns(c) ,total_lines(l) {
         columns = new column[total_columns];
         //initialize with user given values
         for (int i = 0; i < total_columns; i++) {
@@ -82,7 +81,7 @@ public:
     }
 
     // Copy constructor
-    page(const page& other): total_columns(other.total_columns) {
+    page(const page& other): total_columns(other.total_columns), total_lines(other.total_lines) {
         columns = new column[total_columns];
         for (int i = 0; i < total_columns; i++)
             columns[i] = other.columns[i];
@@ -95,6 +94,7 @@ public:
         delete[] this->columns;
 
         this->total_columns = other.total_columns;
+        this->total_lines = other.total_lines;
         columns = new column[total_columns];
         for (int i = 0; i < total_columns; i++)
             this->columns[i] = other.columns[i];
@@ -110,7 +110,6 @@ public:
 
 
 //editor: consists of multiple pages, operations, text buffer, and methods
-
 class Editor {
 private:
     unsigned long long capacity;
@@ -136,6 +135,14 @@ private:
     int minTotalLines ;
     int minTotalColumns;
 
+    bool selectionState;
+    unsigned long long start_selection;
+    unsigned long long end_selection;
+    int start_selectionX;
+    int start_selectionY;
+    int end_selectionX;
+    int end_selectionY;
+
     //max line_length
     const int MAX_CAPACITY=90;
 
@@ -150,9 +157,9 @@ public:
         text = new wchar_t[capacity];
         length = 0;
         //default
-        line_length = 10;
-        total_lines = 5;
-        total_columns = 3;
+        line_length = 40;
+        total_lines = 20;
+        total_columns = 2;
         total_pages = 2; page_index = 0;
         startX = 40;
         startY = 40;
@@ -160,6 +167,14 @@ public:
         cursorX = startX; cursorY = startY;
         words = 0; withoutSpaces = 0;
         cursor_to_text_index = length;
+
+        selectionState=false;
+        start_selection-1;
+        end_selection=-1;
+        start_selectionX=-1;
+        start_selectionY-1;
+        end_selectionX=-1;
+        end_selectionY=-1;
 
         //allocate pages
         pages = new page[total_pages];
@@ -240,6 +255,33 @@ public:
     int& getmaxCursorY() {
         return maxCursorY;
     }
+    bool& getselectionState() {
+        return selectionState;
+  
+    }
+    unsigned long long& getselectionStart() {
+        return start_selection;
+
+    }
+    unsigned long long& getselectionEnd() {
+        return end_selection;
+
+    }
+    int& getselectionStartX() {
+        return start_selectionX;
+
+    }
+    int& getselectionStartY() {
+        return start_selectionY;
+
+    }
+    int& getselectionEndX() {
+        return end_selectionX;
+
+    }
+    int& getselectionEndY() {
+        return end_selectionY;
+    }
 
     //clamping to max possible if user selects large values
     void verifyLayout() {
@@ -265,16 +307,54 @@ public:
 
     //setters for run time layout changes
     void setTotalLines(int n) {
+        int temp = total_lines;
         total_lines = n;
         verifyLayout();
+        //remake the layout
+        if (temp != total_lines) {
+            //clear old
+            delete[] pages;
+            
+            //allocate pages
+            pages = new page[total_pages];
+            for (int i = 0; i < total_pages; i++) {
+                pages[i] = page(total_columns, total_lines);
+            }
+            recalculateLayout();
+        }
     }
     void setTotalColumns(int n) {
+        int temp = total_columns;
         total_columns = n;
         verifyLayout();
+        if (temp != total_columns) {
+            //clear old
+            delete[] pages;
+
+            //allocate pages
+            pages = new page[total_pages];
+            for (int i = 0; i < total_pages; i++) {
+                pages[i] = page(total_columns, total_lines);
+            }
+            recalculateLayout();
+        }
     }
     void setLineLength(int n) {
+        int temp = line_length;
         line_length = n;
         verifyLayout();
+        if (temp != line_length) {
+            //clear old
+            delete[] pages;
+
+            //allocate pages
+            pages = new page[total_pages];
+            for (int i = 0; i < total_pages; i++) {
+                pages[i] = page(total_columns, total_lines);
+            }
+
+            recalculateLayout();
+        }
     }
 
 
@@ -611,7 +691,6 @@ public:
 
     }
 
-
     //function for deletion in our text buffer
     void deleteBack(unsigned long long& i) {
         if (i <= 0) {
@@ -665,7 +744,7 @@ public:
             cursorX = temp;
         }
         //previous column
-        else if (arr[0] > arr[2]) {
+        else if (arr[0] > arr2[0]) {
             cursorY = pages[page_index].getColumns()[arr2[0]].getLine()[arr2[1]].screenY;
 
             int len = pages[page_index].getColumns()[arr2[0]].getLine()[arr2[1]].len;
@@ -704,4 +783,9 @@ public:
     
 
 };
+
+
+
+
+
 

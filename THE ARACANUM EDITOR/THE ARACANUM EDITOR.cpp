@@ -162,8 +162,15 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         unsigned long long track = 0;
         float x = obj.getstartX(), y = obj.getstartY();
        
-        //show current editing page wrt cursor position
-      
+        //check if we need to highlight selected area
+        
+        //RECT highlightRect = { highlightX, y, highlightX + highlightWidth, y + obj.getLineHeight() };
+        //HBRUSH highlightBrush = CreateSolidBrush(RGB(180, 200, 255));
+        //FillRect(hdc, &highlightRect, highlightBrush);
+        //DeleteObject(highlightBrush);
+
+
+        //SHOW PAGE
         int p = obj.getPageIndex();
         int x_chars = 0;
         // Loop over columns 
@@ -182,7 +189,14 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 // Calculate position
                 x = obj.getstartX() + c * (obj.getLineLength() * columnSpacing);
                 y = obj.getstartY() + l * obj.getLineHeight();
-           
+                
+                //check if start lies in our selected range
+                if (obj.getselectionStart() >= start && obj.getselectionEnd() <= start + len) {
+                    SetTextColor(hdc, RGB(0, 0, 255)); // blue for selected
+                }
+                else {
+                    SetTextColor(hdc, RGB(0, 0, 0)); // black for normal
+                }
                              
                 TextOutW(hdc, x, y, obj.getText() + start, len);
                 size;
@@ -204,6 +218,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         }
 
 
+
+
         //place at the end
         obj.getmaxCursorX() = x + ((x_chars)*obj.getcharWidth());
         obj.getmaxCursorY() = y;
@@ -222,6 +238,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             FillRect(hdc, &cursorRect, brush);
             DeleteObject(brush);
         }
+
+
+
 
         //SHOWING FOOTER
 
@@ -262,6 +281,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
 
         concatenate(info1, info2, info3, final);
+
+        SetTextColor(hdc, RGB(0, 0, 0)); // black for normal
 
         TextOutW(hdc, obj.getstartX(), footerY, final, len);
 
@@ -317,8 +338,15 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             }
             else {
                 //deletion required 
+
+                //check if selected
+                if (obj.getselectionState()) {
+                    //TO IMPLEMENT
+
+                }
+
                 obj.deleteBack(obj.getCursorIndex());
-                obj.recalculateLayout();
+                obj.recalculateLayout();                
             }
 
             InvalidateRect(hwnd, NULL, FALSE);
@@ -383,12 +411,58 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
        
         return 0;
     }
-   //left click
-    case WM_LBUTTONDOWN:
-    {
-        wprintf(L"LEFT CLICK!\n");
+   //left click,start selection
+    case WM_LBUTTONDOWN:{
+        int x = LOWORD(lParam);
+        int y = HIWORD(lParam);
+        wprintf(L"Selection Start at-> x: %d ,y:  %d!\n",x,y);
+
+        //turn on selection
+        obj.getselectionState() = true;
+
+        //save coordinates of starting position and map coordinates->index 
+        generateCursorInfo(x, y, obj.getselectionStart(), obj.getselectionStartX(), obj.getselectionStartY());
+
+        //dragging
+        SetCapture(hwnd);
+
+        return 0;
     }
-    return 0;
+  
+    //selection
+    case WM_MOUSEMOVE: {
+        //check if user is selecting
+        if (obj.getselectionState()) {
+            int x = LOWORD(lParam);
+            int y = HIWORD(lParam);
+
+            //keep storing latest positions and alternate index mapping
+            unsigned long long tempIndex;
+            int tempX, tempY;
+            generateCursorInfo(x, y, tempIndex, tempX, tempY);
+
+            obj.getselectionEnd() = tempIndex;
+            obj.getselectionEndX() = tempX;
+            obj.getselectionEndY() = tempY;
+
+            //new cursor position
+            obj.getCursorIndex() = tempIndex;
+            obj.getcursorX() = tempX;
+            obj.getcursorY() = tempY;
+
+            InvalidateRect(hwnd, NULL, FALSE);
+        }
+        return 0;
+    }
+
+
+    //release selection
+    case WM_LBUTTONUP: {
+        obj.getselectionState() = true;
+        ReleaseCapture();
+        return 0;
+    }
+   
 
 
     }
