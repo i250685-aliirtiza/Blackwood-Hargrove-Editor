@@ -126,14 +126,12 @@ private:
     int char_width, lineHeight, lineWidth;
     int cursorX, cursorY;
     unsigned long long cursor_to_text_index;
-    //represent the max valid | placement in text
-    int maxX = startX;
-    int maxY = startY;
-    int minX = startX;
-    int minY = startY;
+
+     
+    int maxCursorX = startX, maxCursorY = startY;
 
     int words, withoutSpaces;
-    bool insert;
+
     int minLineLength;
     int minTotalLines ;
     int minTotalColumns;
@@ -152,16 +150,16 @@ public:
         text = new wchar_t[capacity];
         length = 0;
         //default
-        line_length = 40;
-        total_lines = 20;
-        total_columns = 2;
-        total_pages = 5; page_index = 0;
+        line_length = 10;
+        total_lines = 5;
+        total_columns = 3;
+        total_pages = 2; page_index = 0;
         startX = 40;
         startY = 40;
         char_width = 13;
         cursorX = startX; cursorY = startY;
         words = 0; withoutSpaces = 0;
-        insert = false;
+        cursor_to_text_index = length;
 
         //allocate pages
         pages = new page[total_pages];
@@ -220,18 +218,7 @@ public:
     unsigned long long& getCursorIndex() {
         return cursor_to_text_index;
     }
-    int& getmaxX() {
-        return maxX;
-    }
-    int& getmaxY() {
-        return maxY;
-    }
-    int& getminX() {
-        return minX;
-    }
-    int& getminY() {
-        return minY;
-    }
+
     int& getstartX() {
         return startX;
     }
@@ -247,8 +234,11 @@ public:
     int& getcharWidth() {
         return char_width;
     }
-    bool& getInsert() {
-        return insert;
+    int& getmaxCursorX() {
+        return maxCursorX;
+    }
+    int& getmaxCursorY() {
+        return maxCursorY;
     }
 
     //clamping to max possible if user selects large values
@@ -288,9 +278,31 @@ public:
     }
 
 
+
+    //helper for finding current column and line for cursor calculation
+    void getColumnAndLine(unsigned long long index, int* arr) {
+          for (int p = 0; p <= page_index; p++) {
+            for (int c = 0; c < total_columns; c++) {
+                for (int l = 0; l < total_lines; l++) {
+                    unsigned long long start = pages[p].getColumns()[c].getLine()[l].start;
+                    unsigned long long len = pages[p].getColumns()[c].getLine()[l].len;
+                    if (start == -1) continue; // skip empty lines
+              
+                    if (index >= start && index < start + len) {
+                        arr[0] = c;
+                        arr[1] = l;
+                        return;
+                    }
+                }
+            }
+        }
+
+    }
+
+
     //text pushback
     void append(wchar_t c) {
-        if (length >= capacity - 2) {
+       if (length >= capacity - 2) {
             wchar_t* copy = new wchar_t[capacity * 2];
             for (unsigned long long j = 0; j < length; j++) {
                 copy[j] = text[j];
@@ -302,17 +314,24 @@ public:
 
         text[length] = c;
         length++;
+
         text[length] = L'\0';
+        cursor_to_text_index = length;
+       
     }
 
     //pages array resizing
     void resizePages() {
         page* copy = new page[total_pages * 2];
 
-
         for (int i = 0; i < total_pages; i++) {
             copy[i] = pages[i];
         }
+
+        for (int i = total_pages; i < total_pages * 2; i++) {
+            copy[i] = page(total_columns, total_lines);
+        }
+
         delete[] pages;
         pages = copy;
         total_pages *= 2;
@@ -528,28 +547,16 @@ public:
     }
   
 
-    //getters
-    void getColumnAndLine(unsigned long long index, int* arr) {
-        for (int p = 0; p <= page_index; p++) {
-            for (int c = 0; c < total_columns; c++) {
-                for (int l = 0; l < total_lines; l++) {
-                    unsigned long long start = pages[p].getColumns()[c].getLine()[l].start;
-                    unsigned long long len = pages[p].getColumns()[c].getLine()[l].len;
-                    if (index >= start && index < start + len) {
-                        arr[0] = c;
-                        arr[1] = l;
-                        return;
-                    }
-                }
-            }
-        }
-
-    }
-
-
-    //function for inserting inbetween our text buffer
+    //function for inserting in our text buffer
     void insertAt(unsigned long long& i, wchar_t c) {
-       
+        wprintf(L"index: %d\n", i);
+        if (i == length) {
+            append(c);
+            cursorX = getmaxCursorX();
+            cursorY = getmaxCursorY();
+            return;
+        }
+               
         //safety for index and capacity
         if (length >= capacity - 3) {
             wchar_t* copy = new wchar_t[capacity * 2];
@@ -581,9 +588,10 @@ public:
         int CL_new[2];
         getColumnAndLine(i, CL_new);
 
-        wprintf(L"=====OLD i: %d=====\nColumn: %d , Line: %d\n", i-1,CL_old[0], CL_old[1]);
+        //wprintf(L"=====OLD i: %d=====\nColumn: %d , Line: %d\n", i-1,CL_old[0], CL_old[1]);
 
-        wprintf(L"=====NEW i: %d=====\nColumn: %d , Line: %d\n",i, CL_new[0], CL_new[1]);
+        //wprintf(L"=====NEW i: %d=====\nColumn: %d , Line: %d\n",i, CL_new[0], CL_new[1]);
+       
         //if line and column both same
         if (CL_old[0] == CL_new[0] && CL_old[1] == CL_new[1]) {
             cursorX += char_width;
@@ -592,7 +600,7 @@ public:
         //if change of page
         else if (CL_old[0] == total_columns - 1 && CL_new[0] == 0) {
             cursorX = startX;
-            cursorY = startY;
+            cursorY = startY; 
         }
         //if change of column/line
         else{
@@ -604,12 +612,96 @@ public:
     }
 
 
-    //function for deletion inbetween our text buffer
-    void deleteAt(wchar_t*& text, unsigned long long& index, unsigned long long& i) {
-        return;
+    //function for deletion in our text buffer
+    void deleteBack(unsigned long long& i) {
+        if (i <= 0) {
+            i = 0;
+            return;
+        };
+
+        int arr[2]={0};
+        getColumnAndLine(i, arr);
+        //normal deletion from the end
+        if (i == length) {
+            length--;
+            text[length] = L'\0';
+            i = length;
+        }
+
+        //shifting array
+        else {
+            for (unsigned long long j = i; j < length -1; j++) {
+                text[j] = text[j + 1];
+            }
+            
+            //update position
+            i--;
+            //reduce length
+            length--;
+            text[length] = L'\0';
+        }
+
+
+
+        //moving cursor accordingly
+        recalculateLayout();
+
+        int arr2[2] = { 0 };
+        getColumnAndLine(i, arr2);
+
+
+        //move cursor
+        
+        if (arr[0] == arr2[0] && arr[1] == arr2[1]) {
+            cursorX -= char_width;
+        }
+        //previous line same column
+        else if (arr[0] == arr2[0] && arr[1] > arr2[1]) {
+            cursorY = pages[page_index].getColumns()[arr2[0]].getLine()[arr2[1]].screenY;
+
+            int len = pages[page_index].getColumns()[arr2[0]].getLine()[arr2[1]].len;
+
+            int temp = pages[page_index].getColumns()[arr2[0]].getLine()[arr2[1]].screenX + len * char_width;
+            cursorX = temp;
+        }
+        //previous column
+        else if (arr[0] > arr[2]) {
+            cursorY = pages[page_index].getColumns()[arr2[0]].getLine()[arr2[1]].screenY;
+
+            int len = pages[page_index].getColumns()[arr2[0]].getLine()[arr2[1]].len;
+
+            int temp = pages[page_index].getColumns()[arr2[0]].getLine()[arr2[1]].screenX + len * char_width;
+            cursorX = temp;
+        }
+        //page difference
+        else {
+            if (page_index > 0) page_index--;
+
+            cursorY = lineHeight * total_lines;
+
+            int len = pages[page_index].getColumns()[arr2[0]].getLine()[arr2[1]].len;
+
+            int temp = pages[page_index].getColumns()[arr2[0]].getLine()[arr2[1]].screenX + len * char_width;
+            cursorX = temp;
+        }
+       
     }
 
+    void deleteForward() {
+        //do nothing if no text on right
+        if (cursor_to_text_index >= length) {
+            return;
+        }
+        //cursor index remains same. just shift the array
+        for (unsigned long long j = cursor_to_text_index; j < length - 1; j++) {
+            text[j] = text[j + 1];
+        }
+        length--;
+        text[length] = L'\0';
+        recalculateLayout();
+    }
 
+    
 
 };
 

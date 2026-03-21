@@ -66,7 +66,64 @@ void concatenate(const wchar_t* read1, const wchar_t* read2, const wchar_t* read
 }
 
 
+
+
 Editor obj;
+
+//converting screen x y click to valid buffer index
+void generateCursorInfo(int x, int y,unsigned long long& index, int& cursorX, int& cursorY) {
+
+    //find line 
+    int activeLine = 0, activePage = 0, activeColumn = 0;
+    bool filled = false;
+    for (int p = 0; p <=obj.getPageIndex(); p++) {
+        for (int c = 0; c < obj.getTotalColumns(); c++) {
+            for (int l = 0; l < obj.getTotalLines(); l++) {
+                int screenY = obj.getPages()[p].getColumns()[c].getLine()[l].screenY;
+                int screenX = obj.getPages()[p].getColumns()[c].getLine()[l].screenX;
+                wprintf(L"screenY: %d\n", screenY);
+                if (y>=screenY && y<=screenY+obj.getLineHeight() && !filled){
+                    activeLine = l;
+                    cursorY = screenY;
+                    activePage = p;
+                    filled = true;
+                    break;
+                }
+
+            }
+            if (filled)break;
+
+        }
+        if (filled)break;
+    }
+
+    //find active column
+    for (int c = 0; c < obj.getTotalColumns(); c++) {
+        int min = obj.getPages()[activePage].getColumns()[c].getLine()[activeLine].screenX;
+        int max = min + obj.getLineLength() * obj.getcharWidth();
+        if (x>=min && x<=max) {
+            activeColumn = c;
+            break;
+        }
+    }
+
+    //approximate char index
+    int screenX = obj.getPages()[activePage].getColumns()[activeColumn].getLine()[activeLine].screenX;
+    int temp = screenX;
+    int jump = 0;
+    int len = obj.getPages()[activePage].getColumns()[activeColumn].getLine()[activeLine].len;
+
+    while (jump < len && temp<x) {
+        temp += obj.getcharWidth();
+        jump++;
+    }
+    //we have line, column, page and offset. generate index wrt text buffer
+    int start = obj.getPages()[obj.getPageIndex()].getColumns()[activeColumn].getLine()[activeLine].start;
+    index = start + jump;
+    cursorX = temp;
+  //  wprintf(L"x: %d , y: %d , index: %d , cursorX: %d , cursorY= %d\n",x,y,index,cursorX,cursorY);
+}
+
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
@@ -104,27 +161,29 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         bool filled = false;
         unsigned long long track = 0;
         float x = obj.getstartX(), y = obj.getstartY();
-        int current_column = 0;
-        float offset = 0;
+       
+        //show current editing page wrt cursor position
+      
         int p = obj.getPageIndex();
-
+        int x_chars = 0;
         // Loop over columns 
         for (int c = 0; c < obj.getTotalColumns(); c++) {
             if (filled) break;
             // Loop over lines
             for (int l = 0; l < obj.getTotalLines(); l++) {
 
+
                 unsigned long long start = obj.getPages()[p].getColumns()[c].getLine()[l].start;
                 int len = obj.getPages()[p].getColumns()[c].getLine()[l].len;
-
+                x_chars = len == 0 ? x_chars : len;
                 if (start == -1 || len == 0)continue;
-                offset = 0;
+
 
                 // Calculate position
                 x = obj.getstartX() + c * (obj.getLineLength() * columnSpacing);
                 y = obj.getstartY() + l * obj.getLineHeight();
-
-
+           
+                             
                 TextOutW(hdc, x, y, obj.getText() + start, len);
                 size;
                 GetTextExtentPoint32W(hdc, obj.getText() + start, len, &size);
@@ -134,10 +193,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 //useful for cursor coordinates
                 obj.getPages()[p].getColumns()[c].getLine()[l].screenY = y;
                 obj.getPages()[p].getColumns()[c].getLine()[l].screenX = x;
-                obj.getPages()[p].getColumns()[c].getLine()[l].offsetX = obj.getcharWidth();
-
-                offset += (x + obj.getLineWidth());
-                offset -= 10;//padding
 
                 // update track
                 track += len;
@@ -149,20 +204,20 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         }
 
 
+        //place at the end
+        obj.getmaxCursorX() = x + ((x_chars)*obj.getcharWidth());
+        obj.getmaxCursorY() = y;
 
         //rendering cursor
         unsigned long long current_time = time(NULL);
         unsigned long long elapsed_time = current_time - start_time;
 
-        offset = offset == 0 ? obj.getstartX() : offset;
-        obj.getmaxX() = offset > obj.getmaxX() ? offset : obj.getmaxX();
-        obj.getmaxY() = y > obj.getmaxY() ? y : obj.getmaxY();
-        obj.getminY() = y < obj.getminY() ? y : obj.getminY();
-        //showing periodically
+          //showing periodically
         if (elapsed_time % 2 == 0) {
+            RECT cursorRect;
+      
+            cursorRect = { obj.getcursorX(), obj.getcursorY(),obj.getcursorX() + cursor_width, obj.getcursorY() + obj.getLineHeight() };
 
-            RECT cursorRect = { obj.getcursorX(), obj.getcursorY(),obj.getcursorX() + cursor_width, obj.getcursorY() + obj.getLineHeight() };
-            // RECT cursorRect = { obj.getmaxX(), obj.getmaxY(),obj.getmaxX() + cursor_width,obj.getmaxY() + obj.getLineHeight() };
             brush = CreateSolidBrush(RGB(0, 0, 0));
             FillRect(hdc, &cursorRect, brush);
             DeleteObject(brush);
@@ -252,46 +307,30 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
             //no need of deletion
             if (obj.getLength() <= 1) {
+                obj.getCursorIndex() = 0;
                 obj.getLength() = 0;
                 obj.getWithoutSp() = 0;
                 obj.getText()[0] = '\0';
                 obj.getTotalWords() = 0;
                 obj.recalculateLayout();
-                InvalidateRect(hwnd, NULL, FALSE);
+
             }
-            //deletion required 
             else {
-                //left shift logic
-                if (obj.getInsert()) {
-                    //IMPLEMENTATION NEEDED
-                    //deleteAt(obj.getText(), length, cursor_to_obj.getText()_index);
-
-                    obj.recalculateLayout();
-                    InvalidateRect(hwnd, NULL, FALSE);
-                }
-                //other wise simple deletion from end
-                else {
-                    obj.getWithoutSp()--;
-                    obj.getText()[obj.getLength() - 1] = '\0';
-                    obj.getLength()--;
-                    obj.recalculateLayout();
-                    InvalidateRect(hwnd, NULL, FALSE);
-
-
-                }
-
+                //deletion required 
+                obj.deleteBack(obj.getCursorIndex());
+                obj.recalculateLayout();
             }
 
+            InvalidateRect(hwnd, NULL, FALSE);
         }
+      
+        
+        
+        
         // Enter key
         else if (wParam == '\r') {
-            if (obj.getInsert()) {
-                obj.insertAt(obj.getCursorIndex(), '\n');
-            }
-            else
-                obj.append('\n');
 
-
+            obj.insertAt(obj.getCursorIndex(), '\n');
             obj.recalculateLayout();
             InvalidateRect(hwnd, NULL, FALSE);
 
@@ -299,11 +338,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         // Printable characters
         else if (wParam >= 32 && wParam != 127) {
             if (wParam != ' ')obj.getWithoutSp()++;
-            if (obj.getInsert()) {
-                obj.insertAt(obj.getCursorIndex(), (wchar_t)wParam);
-            }
-            else
-                obj.append((wchar_t)wParam);
+            
+            obj.insertAt(obj.getCursorIndex(), (wchar_t)wParam);
 
             obj.recalculateLayout();
             InvalidateRect(hwnd, NULL, FALSE);
@@ -314,13 +350,21 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
     case WM_KEYDOWN: {
         if (wParam == VK_DELETE) {
-            // Delete key pressed, same as backspace logic
-            if (obj.getLength() > 0) {
-                obj.getText()[obj.getLength() - 1] = '\0';
-                obj.getLength()--;
+            //no need of deletion
+            if (obj.getLength() <= 1) {
+                obj.getCursorIndex() = 0;
+                obj.getLength() = 0;
+                obj.getWithoutSp() = 0;
+                obj.getText()[0] = '\0';
+                obj.getTotalWords() = 0;
                 obj.recalculateLayout();
-                InvalidateRect(hwnd, NULL, FALSE);
+
             }
+            else {
+                obj.deleteForward();
+            }
+
+            InvalidateRect(hwnd, NULL, FALSE);
         }
         return 0;
     }
@@ -328,62 +372,15 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         InvalidateRect(hwnd, NULL, FALSE);
         return 0;
     }
-                 //right click(cursor placement)
+    //right click(cursor placement)
     case WM_RBUTTONDOWN: {
         int x = LOWORD(lParam);
         int y = HIWORD(lParam);
         wprintf(L"x: %d ,  y: %d\n", x, y);
-        //check if user is clicking apart from the allocated text place
-        if (x > obj.getmaxX() || y > obj.getmaxY() || x < obj.getminX() || y < obj.getminY())return 0;
 
-        //calculate cursor info from line data
-
-        //find the x and y coordinates and fix them according to offset+ScreenX+screenY
-        int p = obj.getPageIndex();
-        bool foundX = false;
-        bool foundY = false;
-        for (int c = 0; c < obj.getTotalColumns(); c++) {
-            for (int l = 0; l < obj.getTotalLines(); l++) {
-                int screenY = obj.getPages()[p].getColumns()[c].getLine()[l].screenY;
-                //check for y first
-                if (screenY >= y - 10) {
-                    obj.getcursorY() = screenY;
-                    foundY = true;
-                }
-                //if y found approximate X
-                if (foundY) {
-                    int offset = obj.getPages()[p].getColumns()[c].getLine()[l].offsetX;
-                    int screenX = obj.getPages()[p].getColumns()[c].getLine()[l].screenX;
-                    for (int i = 0; i < obj.getPages()[p].getColumns()[c].getLine()[l].len; i++) {
-                        //approximation wrt start of line
-                        if (screenX + (obj.getcharWidth() * (i + 1)) <= x - 10) {
-                            obj.getcursorX() = x;
-                            if (obj.getcursorX() == obj.getmaxX())obj.getInsert() = false;
-                            else {
-                                obj.getInsert() = true;
-                                //calculate index
-                                obj.getCursorIndex() = obj.getPages()[p].getColumns()[c].getLine()[l].start;//start of line
-                                //move from start of line wrt character width
-                                int jump = 0;
-                                int temp = obj.getPages()[p].getColumns()[c].getLine()[l].screenX;
-                                while (temp <= obj.getcursorX()) {
-                                    temp += obj.getcharWidth();
-                                    jump += 1;
-                                }
-                                obj.getCursorIndex() += jump - 1;
-                                                       
-                                //   wprintf(L"index: %d\n", obj.getCursorIndex());
-
-                            }
-                            foundX = true; break;
-                        }
-                    }
-                }
-                if (foundY && foundX)break;
-            }
-            if (foundY && foundX)break;
-        }
-
+        generateCursorInfo(x, y, obj.getCursorIndex(), obj.getcursorX(), obj.getcursorY());
+       
+       
         return 0;
     }
    //left click
