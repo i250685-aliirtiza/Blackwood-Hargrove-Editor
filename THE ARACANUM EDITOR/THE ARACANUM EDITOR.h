@@ -433,12 +433,13 @@ public:
 
         i += 1;//for last space after word
         return i;
+
     }
 
     //filling our layout
     void recalculateLayout() {
         // Read through `text`, break it into lines/columns/pages
-        words = 0;
+        words = 0; withoutSpaces = 0;
         // Clear previous layout
         for (int p = 0; p <= page_index; p++) {
             for (int c = 0; c < total_columns; c++) {
@@ -448,6 +449,7 @@ public:
                 }
             }
         }
+
         unsigned long long track = 0; //iterating over text
         int p = 0;//represents current page
         int c = 0;//represents current column
@@ -457,6 +459,10 @@ public:
            //text buffer filled
             if (track >= length) {
                 page_index = p;
+                //calculate without spaces chars
+                for (unsigned long long j = 0; j < length; j++) {
+                    if (text[j] != L' ' && text[j] != L'\n')withoutSpaces++;
+                }
                 return;
             }
 
@@ -466,6 +472,7 @@ public:
 
             //get len of word
             int len = getLen(&text[track]);
+
 
             //if -1 go to next line/column/page whatever is in place
             if (len == -1) {
@@ -521,7 +528,7 @@ public:
             }
             //else wrap
             else {
-                words++;
+                words++; 
                 // Save current line without this word
                 if (pages[p].getColumns()[c].getLine()[l].start != -1) {
                     pages[p].getColumns()[c].getLine()[l].len = total - len;
@@ -579,7 +586,7 @@ public:
             //SPECIAL CASE
             //if a word is longer than line
             while (len > line_length) {
-
+               
                 if (pages[p].getColumns()[c].getLine()[l].start == -1) {
                     pages[p].getColumns()[c].getLine()[l].start = track;
                 }
@@ -632,6 +639,9 @@ public:
 
     //function for inserting in our text buffer
     void insertAt(unsigned long long& i, wchar_t c) {
+
+     
+
         if (i > length)i = length;
 
         wprintf(L"index: %d\n", i);
@@ -776,6 +786,7 @@ public:
         if (cursor_to_text_index >= length) {
             return;
         }
+      
         //cursor index remains same. just shift the array
         for (unsigned long long j = cursor_to_text_index; j < length - 1; j++) {
             text[j] = text[j + 1];

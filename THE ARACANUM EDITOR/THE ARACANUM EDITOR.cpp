@@ -414,8 +414,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 CloseClipboard();
             }
         }
-
         // Backspace
+  
         else if (wParam == '\b') {
 
             //no need of deletion
@@ -444,10 +444,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
             InvalidateRect(hwnd, NULL, FALSE);
         }
-      
-        
-        
-        
+            
         // Enter key
         else if (wParam == '\r') {
             //clear selected area
@@ -463,9 +460,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         }
         // Printable characters
-        else if (wParam >= 32 && wParam != 127) {
-            if (wParam != ' ')obj.getWithoutSp()++;
-            
+        else if (wParam >= 32 && wParam != 127) {            
             //clear selected area
             if (obj.getselectionState()) {
                 obj.deletePortion();
@@ -572,7 +567,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
     //release selection
     case WM_LBUTTONUP: {
-        obj.getselectionState() = true;
+        obj.getselectionState() = false;
         ReleaseCapture();
         return 0;
     }
