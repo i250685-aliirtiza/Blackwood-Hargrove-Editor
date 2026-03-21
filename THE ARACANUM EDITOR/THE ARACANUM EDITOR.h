@@ -376,6 +376,9 @@ public:
                 }
             }
         }
+          //else
+          arr[0] = total_columns - 1;
+          arr[1] = total_lines - 1;
 
     }
 
@@ -765,7 +768,7 @@ public:
         }
        
     }
-
+    //delete key
     void deleteForward() {
         //do nothing if no text on right
         if (cursor_to_text_index >= length) {
@@ -780,6 +783,26 @@ public:
         recalculateLayout();
     }
 
+
+    //deleting selected text, always deletes from start to end of selected portion
+    void deletePortion() {
+        
+        unsigned long long start = start_selection < end_selection ? start_selection : end_selection;
+        unsigned long long end= start_selection > end_selection ? start_selection : end_selection;
+
+
+        if (start == end || start <0 || end <0 || start>length)return;
+
+        unsigned long long index = start;
+        for (unsigned long long j = end; j < length; j++) {
+            text[index] = text[j];
+            index++;
+        }
+        length = index;
+        cursor_to_text_index = length;
+        text[length] = L'\0';
+        recalculateLayout();
+    }
     
 
 };

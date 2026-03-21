@@ -192,7 +192,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 
                 //check if start lies in our selected range
                 if (obj.getselectionStart() >= start && obj.getselectionEnd() <= start + len) {
-                    SetTextColor(hdc, RGB(0, 0, 255)); // blue for selected
+                    SetTextColor(hdc, RGB(0, 0, 255)); // blue for selected                   
                 }
                 else {
                     SetTextColor(hdc, RGB(0, 0, 0)); // black for normal
@@ -339,11 +339,12 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             else {
                 //deletion required 
 
-                //check if selected
+                 //clear selected area
                 if (obj.getselectionState()) {
-                    //TO IMPLEMENT
-
+                    obj.deletePortion();
+                    obj.getselectionState() = false;
                 }
+                InvalidateRect(hwnd, NULL, FALSE);
 
                 obj.deleteBack(obj.getCursorIndex());
                 obj.recalculateLayout();                
@@ -357,6 +358,12 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         
         // Enter key
         else if (wParam == '\r') {
+            //clear selected area
+            if (obj.getselectionState()) {
+                obj.deletePortion();
+                obj.getselectionState() = false;
+            }
+            InvalidateRect(hwnd, NULL, FALSE);
 
             obj.insertAt(obj.getCursorIndex(), '\n');
             obj.recalculateLayout();
@@ -366,6 +373,13 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         // Printable characters
         else if (wParam >= 32 && wParam != 127) {
             if (wParam != ' ')obj.getWithoutSp()++;
+            
+            //clear selected area
+            if (obj.getselectionState()) {
+                obj.deletePortion();
+                obj.getselectionState() = false;
+            }
+            InvalidateRect(hwnd, NULL, FALSE);
             
             obj.insertAt(obj.getCursorIndex(), (wchar_t)wParam);
 
@@ -378,6 +392,13 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
     case WM_KEYDOWN: {
         if (wParam == VK_DELETE) {
+            //clear selected area
+            if (obj.getselectionState()) {
+                obj.deletePortion();
+                obj.getselectionState() = false;
+            }
+            InvalidateRect(hwnd, NULL, FALSE);
+
             //no need of deletion
             if (obj.getLength() <= 1) {
                 obj.getCursorIndex() = 0;
@@ -396,6 +417,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         }
         return 0;
     }
+   
     case WM_TIMER: {
         InvalidateRect(hwnd, NULL, FALSE);
         return 0;
@@ -463,11 +485,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         return 0;
     }
    
-
-
     }
-
-
 
     return DefWindowProc(hwnd, msg, wParam, lParam);
 }
