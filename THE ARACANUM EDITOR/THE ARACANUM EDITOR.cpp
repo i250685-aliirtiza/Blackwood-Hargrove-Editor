@@ -162,12 +162,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         unsigned long long track = 0;
         float x = obj.getstartX(), y = obj.getstartY();
        
-        //check if we need to highlight selected area
-        
-        //RECT highlightRect = { highlightX, y, highlightX + highlightWidth, y + obj.getLineHeight() };
-        //HBRUSH highlightBrush = CreateSolidBrush(RGB(180, 200, 255));
-        //FillRect(hdc, &highlightRect, highlightBrush);
-        //DeleteObject(highlightBrush);
 
 
         //SHOW PAGE
@@ -330,8 +324,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             break;
         }
         //PASTE TEXT
-        //16 is ascii for ctrl+P
-        if (wParam == 16) {
+        //22 is ascii for ctrl+V
+        if (wParam == 22) {
             // Access clipboard and get text into wchar_t* temp
             if (OpenClipboard(hwnd))
             {
@@ -377,6 +371,20 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             break;
         }
         
+        //saving file
+        if (wParam == 19) {
+            bool val=obj.saveFile("dummy.txt");
+            break;
+        }
+        //opening file
+        if (wParam == 15) {
+            bool val = obj.loadFile("sample-text_for_editor.txt");
+            obj.recalculateLayout();
+            InvalidateRect(hwnd, NULL, FALSE);
+            wprintf(L"cursor index: %d\n", obj.getCursorIndex());
+            break;
+        }
+
         //3 i ascii for ctrl +c
         if (wParam == 3){
             if (OpenClipboard(hwnd))
@@ -567,7 +575,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
     //release selection
     case WM_LBUTTONUP: {
-        obj.getselectionState() = false;
+        obj.getselectionState() = true;
         ReleaseCapture();
         return 0;
     }

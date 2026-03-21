@@ -2,6 +2,9 @@
 #include "resource.h"
 #include<windows.h>
 #include <cstdio>
+#include<fstream>
+using namespace std;
+
 //layout
 struct Line {
     unsigned long long start = -1;
@@ -283,6 +286,38 @@ public:
         return end_selectionY;
     }
 
+
+    //reading/writint files
+    bool saveFile(const char* filename=nullptr) {
+        //if user hasn't passed name
+        if (filename == nullptr) {
+            filename = "file.txt";
+        }
+
+        wofstream writeFile;
+        writeFile.open(filename);
+        if (!writeFile)return false;
+        writeFile<<text;
+        writeFile.close();
+        return true;
+    }
+
+    //loading file
+    bool loadFile(const char* filename) {
+        if (filename == nullptr) {
+            return false;
+        }
+
+        wifstream readFile(filename,ios::binary);
+        if (!readFile)return false;
+        wchar_t c;
+        while (readFile.get(c)) {
+            append(c);
+        }
+        text[length] = L'\0';
+    }
+
+
     //clamping to max possible if user selects large values
     void verifyLayout() {
         //checking if smaller than minimum
@@ -436,6 +471,7 @@ public:
 
     }
 
+    //BACKBONE OF EDITOR
     //filling our layout
     void recalculateLayout() {
         // Read through `text`, break it into lines/columns/pages
