@@ -145,6 +145,7 @@ private:
     int start_selectionY;
     int end_selectionX;
     int end_selectionY;
+    int max_page;
 
     //max line_length
     const int MAX_CAPACITY=90;
@@ -170,7 +171,7 @@ public:
         cursorX = startX; cursorY = startY;
         words = 0; withoutSpaces = 0;
         cursor_to_text_index = length;
-
+        max_page = 0;
         selectionState=false;
         start_selection-1;
         end_selection=-1;
@@ -205,8 +206,11 @@ public:
     int getTotalPages() const {
         return total_pages;
     }
-    int getPageIndex() const {
+    int& getPageIndex()  {
         return page_index;
+    }
+    int& getMaxPage() {
+        return max_page;
     }
     int& getTotalWords() {
         return words;
@@ -310,6 +314,13 @@ public:
 
         wifstream readFile(filename,ios::binary);
         if (!readFile)return false;
+
+        //check if there's any data in editor already, clear it
+        delete[] text;
+        cursor_to_text_index = 0;
+        length = 0;
+        text = new wchar_t[capacity];
+
         wchar_t c;
         while (readFile.get(c)) {
             append(c);
@@ -356,6 +367,7 @@ public:
                 pages[i] = page(total_columns, total_lines);
             }
             recalculateLayout();
+            page_index = findCurrentPage();
         }
     }
     void setTotalColumns(int n) {
@@ -372,6 +384,7 @@ public:
                 pages[i] = page(total_columns, total_lines);
             }
             recalculateLayout();
+            page_index = findCurrentPage();
         }
     }
     void setLineLength(int n) {
@@ -389,6 +402,7 @@ public:
             }
 
             recalculateLayout();
+            page_index = findCurrentPage();
         }
     }
 
@@ -396,7 +410,7 @@ public:
 
     //helper for finding current column and line for cursor calculation
     void getColumnAndLine(unsigned long long index, int* arr) {
-          for (int p = 0; p <= page_index; p++) {
+          for (int p = 0; p <= max_page; p++) {
             for (int c = 0; c < total_columns; c++) {
                 for (int l = 0; l < total_lines; l++) {
                     unsigned long long start = pages[p].getColumns()[c].getLine()[l].start;
@@ -471,13 +485,33 @@ public:
 
     }
 
+
+    //finding current page to display
+    int findCurrentPage() {
+        //loop till cursor index
+        for (int p = 0; p <= max_page; p++) {
+            for (int c = 0; c < total_columns; c++) {
+                for (int l = 0; l < total_lines; l++) {
+                    int start = pages[p].getColumns()[c].getLine()[l].start;
+                    int len = pages[p].getColumns()[c].getLine()[l].len;
+
+                    if (cursor_to_text_index >= start && cursor_to_text_index < start + len) {
+                        return p;
+                    }
+                }
+            }
+        }
+        //nothing found
+        return max_page;
+    }
+    
     //BACKBONE OF EDITOR
     //filling our layout
     void recalculateLayout() {
         // Read through `text`, break it into lines/columns/pages
         words = 0; withoutSpaces = 0;
         // Clear previous layout
-        for (int p = 0; p <= page_index; p++) {
+        for (int p = 0; p <= max_page; p++) {
             for (int c = 0; c < total_columns; c++) {
                 for (int l = 0; l < total_lines; l++) {
                     pages[p].getColumns()[c].getLine()[l].start = -1;
@@ -494,7 +528,7 @@ public:
         while (true) {
            //text buffer filled
             if (track >= length) {
-                page_index = p;
+                max_page = p;
                 //calculate without spaces chars
                 for (unsigned long long j = 0; j < length; j++) {
                     if (text[j] != L' ' && text[j] != L'\n')withoutSpaces++;
@@ -715,6 +749,7 @@ public:
         i++;
 
         recalculateLayout();
+        page_index = findCurrentPage();
         //increment cursor
         int CL_new[2];
         getColumnAndLine(i, CL_new);
@@ -730,6 +765,7 @@ public:
         }
         //if change of page
         else if (CL_old[0] == total_columns - 1 && CL_new[0] == 0) {
+            page_index++;
             cursorX = startX;
             cursorY = startY; 
         }
@@ -775,6 +811,7 @@ public:
 
         //moving cursor accordingly
         recalculateLayout();
+        page_index = findCurrentPage();
 
         int arr2[2] = { 0 };
         getColumnAndLine(i, arr2);
@@ -830,6 +867,7 @@ public:
         length--;
         text[length] = L'\0';
         recalculateLayout();
+        page_index = findCurrentPage();
     }
 
 
@@ -851,12 +889,14 @@ public:
         cursor_to_text_index = length;
         text[length] = L'\0';
         recalculateLayout();
+        page_index = findCurrentPage();
     }
     
 
     //select all
     void selectAll() {
         recalculateLayout();
+        page_index = findCurrentPage();
         end_selection = pages[page_index].getColumns()[0].getLine()[0].start;
         int c = total_columns - 1;
         int l = total_lines - 1;

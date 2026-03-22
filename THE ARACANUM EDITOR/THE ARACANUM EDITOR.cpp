@@ -317,6 +317,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         return 0;
 
     case WM_CHAR: {
+
+   
         //1 is ascii for ctrl+A
         if (wParam == 1) {
             obj.selectAll();
@@ -359,10 +361,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                         //insert to buffer
                         for (int i = 0; i < len; i++) {
                                 obj.insertAt(obj.getCursorIndex(), temp[i]);
-                                obj.recalculateLayout();
-                                InvalidateRect(hwnd, NULL, FALSE);
-                            }         
-                        
+                               }         
+                        obj.recalculateLayout();
+                        obj.getPageIndex() = obj.findCurrentPage();
+                        InvalidateRect(hwnd, NULL, FALSE);
                         delete[] temp;
                     }
                 }
@@ -380,6 +382,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         if (wParam == 15) {
             bool val = obj.loadFile("sample-text_for_editor.txt");
             obj.recalculateLayout();
+
             InvalidateRect(hwnd, NULL, FALSE);
             wprintf(L"cursor index: %d\n", obj.getCursorIndex());
             break;
@@ -447,7 +450,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 InvalidateRect(hwnd, NULL, FALSE);
 
                 obj.deleteBack(obj.getCursorIndex());
-                obj.recalculateLayout();                
+                obj.recalculateLayout();     
+                obj.getPageIndex() = obj.findCurrentPage();
             }
 
             InvalidateRect(hwnd, NULL, FALSE);
@@ -464,6 +468,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
             obj.insertAt(obj.getCursorIndex(), '\n');
             obj.recalculateLayout();
+            obj.getPageIndex() = obj.findCurrentPage();
+
             InvalidateRect(hwnd, NULL, FALSE);
 
         }
@@ -479,11 +485,14 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             obj.insertAt(obj.getCursorIndex(), (wchar_t)wParam);
 
             obj.recalculateLayout();
+            obj.getPageIndex() = obj.findCurrentPage();
+
             InvalidateRect(hwnd, NULL, FALSE);
 
         }
         return 0;
     }
+
 
     case WM_KEYDOWN: {
         if (wParam == VK_DELETE) {
@@ -510,6 +519,28 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
             InvalidateRect(hwnd, NULL, FALSE);
         }
+      
+        // Up arrow pressed
+        else if (wParam == VK_UP) {
+            if (obj.getPageIndex() > 0) {
+                obj.getPageIndex()--;
+
+                //move cursor to the start of page
+                generateCursorInfo(obj.getstartX(), obj.getstartY(), obj.getCursorIndex(), obj.getcursorX(), obj.getcursorY());
+            }
+        }
+        
+        //down arrow key
+        else if (wParam==VK_DOWN) {
+            if (obj.getPageIndex() + 1 <= obj.getMaxPage()) {
+                obj.getPageIndex()++;
+                //move cursor
+                generateCursorInfo(obj.getstartX(), obj.getstartY(), obj.getCursorIndex(), obj.getcursorX(), obj.getcursorY());
+            }
+        }
+            
+     
+        
         return 0;
     }
    
@@ -519,6 +550,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     }
     //right click(cursor placement)
     case WM_RBUTTONDOWN: {
+        //stop selection
+        obj.getselectionState() = false;
+        obj.getselectionStart() = -1;
+        obj.getselectionEnd() = -1;
+
         int x = LOWORD(lParam);
         int y = HIWORD(lParam);
         wprintf(L"x: %d ,  y: %d\n", x, y);
