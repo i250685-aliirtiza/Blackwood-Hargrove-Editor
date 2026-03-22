@@ -3,6 +3,8 @@
 #include<windows.h>
 #include <cstdio>
 #include<fstream>
+#include<ctime>
+
 using namespace std;
 
 //layout
@@ -122,7 +124,7 @@ private:
     unsigned long long capacity;
     wchar_t* text;
     unsigned long long length;
-
+    int cursor_width = 1;
     //pages
     page* pages;
     int page_index;
@@ -362,12 +364,345 @@ public:
     int& getSentences() {
         return sentences;
     }
+
+    //helper int to char, for words, total chars etc
+    void convertToStr(int num, wchar_t arr[]) {
+        if (num == 0) {
+            arr[0] = L'0';
+            arr[1] = L'\0';
+            return;
+        }
+
+
+        int i = 0;
+        while (num) {
+            arr[i] = num % 10 + 48;
+            num /= 10;
+            i++;
+        }
+        arr[i] = L'\0';
+
+        //reverse
+        for (int j = 0; j < i / 2; j++) {
+            wchar_t temp = arr[j];
+            arr[j] = arr[i - 1 - j];
+            arr[i - 1 - j] = temp;
+        }
+
+    }
+
+    int merge(const wchar_t* read, const wchar_t* read2, wchar_t* write) {
+        int len = 0;
+        while (*read) {
+            *write = *read; len++;
+            write++; read++;
+        }
+        while (*read2) {
+            *write = *read2; len++;
+            write++; read2++;
+        }
+        *write = '\0';
+
+
+        return len;
+
+    }
+
+    void concatenate(const wchar_t* read1, const wchar_t* read2, const wchar_t* read3, wchar_t* write) {
+        while (*read1) {
+            *write = *read1;
+            write++; read1++;
+        }
+        while (*read2) {
+            *write = *read2;
+            write++; read2++;
+        }
+        while (*read3) {
+            *write = *read3;
+            write++; read3++;
+        }
+        *write = L'\0';
+    }
+
+
+    void render(HDC& hdc, HWND& hwnd,unsigned long long start_time) {
+
+        // Clear background
+        RECT rect;
+        GetClientRect(hwnd, &rect);
+        HBRUSH brush = CreateSolidBrush(RGB(255, 255, 255));
+        FillRect(hdc, &rect, brush);
+        DeleteObject(brush);
+
+
+
+        // Rendering function
+
+        // Get line height
+        TEXTMETRICW tm;
+        GetTextMetrics(hdc, &tm);
+        getLineHeight() = tm.tmHeight + tm.tmExternalLeading;
+        SIZE size;
+        GetTextExtentPoint32W(hdc, getText(), getLength(), &size);
+        getLineWidth() = size.cx; // width in pixels of len characters
+        // Starting positions
+        float columnSpacing = 14; // horizontal gap between columns
+
+        bool filled = false;
+        unsigned long long track = 0;
+        float x = getstartX(), y = getstartY();
+
+
+
+        //SHOW PAGE
+        int p = getPageIndex();
+        int x_chars = 0;
+        // Loop over columns 
+        for (int c = 0; c < getTotalColumns(); c++) {
+            if (filled) break;
+            // Loop over lines
+            for (int l = 0; l < getTotalLines(); l++) {
+
+
+                unsigned long long start = getPages()[p].getColumns()[c].getLine()[l].start;
+                int len = getPages()[p].getColumns()[c].getLine()[l].len;
+                x_chars = len == 0 ? x_chars : len;
+                if (start == -1 || len == 0)continue;
+
+
+                // Calculate position
+                x = getstartX() + c * (getLineLength() * columnSpacing);
+                y = getstartY() + l * getLineHeight();
+
+                //printing the line char by char if it is marked
+                bool isMarked = false;
+                //search for index of current line in highlights
+                for (int i = 0; i < getMarkedIndex(); i++) {
+                    unsigned long long tempStart = getMarkedText()[i].start;
+                    int tempLen = getMarkedText()[i].len;
+                    if (tempStart >= start && tempLen < start + len) {
+                        isMarked = true;
+                        break;
+                    }
+                }
+                if (isMarked) {
+                    unsigned long long lineStart = start;
+                    unsigned long long lineEnd = start + len;
+                    int lineStartX = x;
+
+                    // Loop through each character on this line
+                    for (unsigned long long charIdx = lineStart; charIdx < lineEnd; charIdx++) {
+                        wchar_t ch = getText()[charIdx];
+
+                        // if character is marked in our highlights, print red
+                        bool isRed = false;
+                        for (int i = 0; i < getMarkedIndex(); i++) {
+                            unsigned long long markStart = getMarkedText()[i].start;
+                            unsigned long long markLen = (unsigned long long)getMarkedText()[i].len;
+                            unsigned long long markEnd = markStart + markLen;
+
+                            if (charIdx >= markStart && charIdx < markEnd) {
+                                isRed = true;
+                                break;
+                            }
+                        }
+
+                        // Set color and draw
+                        if (isRed) {
+                            SetTextColor(hdc, RGB(255, 0, 0));  // Red
+                        }
+                        else {
+                            SetTextColor(hdc, RGB(0, 0, 0));   // Black
+                        }
+
+                        TextOutW(hdc, x, y, &ch, 1);
+
+                        // Advance x position
+                        SIZE charSize;
+                        GetTextExtentPoint32W(hdc, &ch, 1, &charSize);
+                        x += charSize.cx;
+                    }
+
+                    getLineWidth() = x - lineStartX;
+                }
+
+                //if not marked
+                else {
+                    //check if start lies in our selected range
+                    if (getselectionStart() >= start && getselectionEnd() <= start + len) {
+                        SetTextColor(hdc, RGB(0, 0, 255)); // blue for selected                   
+                    }
+                    else {
+                        SetTextColor(hdc, RGB(0, 0, 0)); // black for normal
+                    }
+
+                    TextOutW(hdc, x, y, getText() + start, len);
+                }
+                size;
+                GetTextExtentPoint32W(hdc, getText() + start, len, &size);
+                getLineWidth() = size.cx; // width in pixels of len characters
+                getcharWidth() = getLineWidth() / len;
+
+                //useful for cursor coordinates
+                getPages()[p].getColumns()[c].getLine()[l].screenY = y;
+                getPages()[p].getColumns()[c].getLine()[l].screenX = x;
+
+                // update track
+                track += len;
+                if (track >= getLength()) {
+                    filled = true;
+                    break;
+                }
+            }
+        }
+        //showing search bar at top
+        int searchX = getstartX();
+        int searchY = 0;
+
+        wchar_t searchTEXT[500];
+        int searchLen = merge(L"search(CTRL+F, ESC, ENTER): ", getSearchText(), searchTEXT);
+        SetTextColor(hdc, RGB(255, 0, 0)); //red
+        TextOutW(hdc, searchX, searchY, searchTEXT, searchLen);
+
+        SetTextColor(hdc, RGB(0, 0, 0)); // black for normal
+
+
+
+        //place at the end
+        getmaxCursorX() = x + ((x_chars)*getcharWidth());
+        getmaxCursorY() = y;
+
+        //rendering cursor
+        unsigned long long current_time = time(NULL);
+        unsigned long long elapsed_time = current_time - start_time;
+
+        //showing periodically
+        if (elapsed_time % 2 == 0) {
+            RECT cursorRect;
+
+            cursorRect = { getcursorX(), getcursorY(),getcursorX() + cursor_width, getcursorY() + getLineHeight() };
+
+            brush = CreateSolidBrush(RGB(0, 0, 0));
+            FillRect(hdc, &cursorRect, brush);
+            DeleteObject(brush);
+        }
+
+
+
+
+
+        //SHOWING FOOTER
+
+        int footerY = getLineHeight() * getTotalLines();
+        footerY += getstartY();
+        //offset
+        footerY += 30;
+
+        // Create smaller font for footer
+        HFONT footerFont = CreateFontW(
+            14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+            CLEARTYPE_QUALITY, DEFAULT_PITCH, L"Courier New"
+        );
+
+        // Switch to footer font
+        HFONT oldFooterFont = (HFONT)SelectObject(hdc, footerFont);
+
+        // Draw footer for total words, characters and characters without spaces
+        wchar_t final[300];
+        wchar_t info1[100];
+        wchar_t info2[100];
+        wchar_t info3[100];
+
+        int len = 0;
+        const wchar_t* str2 = L"Total Words: ";
+        wchar_t arr[20];
+        convertToStr(getTotalWords(), arr);
+        len += merge(str2, arr, info1);
+
+        str2 = L" | Total Characters: ";
+        convertToStr(getLength(), arr);
+        len += merge(str2, arr, info2);
+
+        str2 = L"  | Total Characters without sapaces: ";
+        convertToStr(getWithoutSp(), arr);
+        len += merge(str2, arr, info3);
+
+
+        concatenate(info1, info2, info3, final);
+
+        //add sentences count
+        str2 = L" | Total Sentences: ";
+        convertToStr(getSentences(), arr);
+        wchar_t final2[400];
+
+        wchar_t info4[100];
+        len += merge(str2, arr, info4);
+        len = 0;
+        len += merge(final, info4, final2);
+
+        SetTextColor(hdc, RGB(0, 0, 0)); // black for normal
+
+        TextOutW(hdc, getstartX(), footerY, final2, len);
+
+        //also page numbering, showing under middle column.
+        int val = getTotalColumns() * getLineLength();
+        int temp = getstartX();
+        temp = val / 2;
+        temp *= getcharWidth();
+
+        int page_numberX = temp;
+        footerY -= 20;
+        len = 0;
+        str2 = L"------";
+        convertToStr(getPageIndex() + 1, arr);
+        concatenate(str2, arr, str2, final);
+        len = getLen(final) - 1;
+        TextOutW(hdc, page_numberX, footerY, final, len);
+
+        //show search history
+        if (getHistoryState()) {
+
+            footerY += 30;
+            SetTextColor(hdc, RGB(255, 0, 0));
+            TextOutW(hdc, getstartX(), footerY, L"====SEARCH HISTORY==== ", 24);
+            footerY += 10;
+            for (int i = 0; i < getHistoryCap(); i++) {
+                const wchar_t* str2 = getHistoryAt(i);
+                const wchar_t* str3 = L"  :  ";
+                int len = merge(str2, str3, final);
+                //skipping empty entries
+                if (getHistoryCountAt(i) == 0)continue;
+
+                convertToStr(getHistoryCountAt(i), arr);
+                len = merge(final, arr, final2);
+
+                //final string
+                SetTextColor(hdc, RGB(0, 0, 255));
+                TextOutW(hdc, getstartX(), footerY, final2, len);
+
+                footerY += 10;
+            }
+        }
+
+
+        // Restore original font
+        SelectObject(hdc, oldFooterFont);
+
+        // Delete footer font
+        DeleteObject(footerFont);
+
+   }
+
     
+
     const wchar_t* getHistoryAt(int i) {
+        if (i < 0)i = 0;
         if (i >= searchHistoryCapacity)i = searchHistoryCapacity - 1;
         return searchHistory[i];
     }
     int getHistoryCountAt(int i) {
+        if (i < 0)i = 0;
         if (i >= searchHistoryCapacity)i = searchHistoryCapacity - 1;
 
         return searchHistoryCounts[i];
@@ -437,6 +772,7 @@ public:
             append(c);
         }
         text[length] = L'\0';
+        return true;
     }
 
 
@@ -1074,7 +1410,7 @@ public:
 
 
         for (int i = 0; i < 5; i++) {
-            wprintf(L"string: %s , count: %d\n", searchHistory[i],searchHistoryCounts[i]);
+         //   wprintf(L"string: %s , count: %d\n", searchHistory[i],searchHistoryCounts[i]);
         }
 
 
@@ -1118,7 +1454,7 @@ public:
             //if substring matched
             else if(searchText[index]==L'\0') {
                 pushback_highlight(j - searchIndex-1, searchIndex);
-                wprintf(L"%c\n", text[j - searchIndex-1]);
+             //   wprintf(L"%c\n", text[j - searchIndex-1]);
                 
 
                 //reset for next search

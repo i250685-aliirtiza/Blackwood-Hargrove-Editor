@@ -4,66 +4,8 @@
 #include<ctime>
 
 unsigned long long start_time = time(NULL);
-int cursor_width = 1;
-
-//helper int to char, for words, total chars etc
-void convertToStr(int num, wchar_t arr[]) {
-    if (num == 0) {
-        arr[0] = L'0';
-        arr[1] = L'\0';
-        return;
-    }
 
 
-    int i = 0;
-    while (num) {
-        arr[i] = num % 10 + 48;
-        num /= 10;
-        i++;
-    }
-    arr[i] = L'\0';
-
-    //reverse
-    for (int j = 0; j < i / 2; j++) {
-        wchar_t temp = arr[j];
-        arr[j] = arr[i - 1 - j];
-        arr[i - 1 - j] = temp;
-    }
-
-}
-
-int merge(const wchar_t* read, const wchar_t* read2, wchar_t* write) {
-    int len = 0;
-    while (*read) {
-        *write = *read; len++;
-        write++; read++;
-    }
-    while (*read2) {
-        *write = *read2; len++;
-        write++; read2++;
-    }
-    *write = '\0';
-
-
-    return len;
-
-}
-
-void concatenate(const wchar_t* read1, const wchar_t* read2, const wchar_t* read3, wchar_t* write) {
-    while (*read1) {
-        *write = *read1;
-        write++; read1++;
-    }
-    while (*read2) {
-        *write = *read2;
-        write++; read2++;
-    }
-    while (*read3) {
-        *write = *read3;
-        write++; read3++;
-    }
-    *write = L'\0';
-}
 
 Editor obj;
 
@@ -78,7 +20,7 @@ void generateCursorInfo(int x, int y,unsigned long long& index, int& cursorX, in
             for (int l = 0; l < obj.getTotalLines(); l++) {
                 int screenY = obj.getPages()[p].getColumns()[c].getLine()[l].screenY;
                 int screenX = obj.getPages()[p].getColumns()[c].getLine()[l].screenX;
-                wprintf(L"screenY: %d\n", screenY);
+              //  wprintf(L"screenY: %d\n", screenY);
                 if (y>=screenY && y<=screenY+obj.getLineHeight() && !filled){
                     activeLine = l;
                     cursorY = screenY;
@@ -127,14 +69,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     case WM_PAINT: {
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hwnd, &ps);
-
-        // Clear background
-        RECT rect;
-        GetClientRect(hwnd, &rect);
-        HBRUSH brush = CreateSolidBrush(RGB(255, 255, 255));
-        FillRect(hdc, &rect, brush);
-        DeleteObject(brush);
-
         // Set font
         HFONT font = CreateFont(24, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
             DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
@@ -143,262 +77,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         SetBkMode(hdc, TRANSPARENT);
         SetTextColor(hdc, RGB(0, 0, 0));
 
-        // Rendering function
-
-        // Get line height
-        TEXTMETRICW tm;
-        GetTextMetrics(hdc, &tm);
-        obj.getLineHeight() = tm.tmHeight + tm.tmExternalLeading;
-        SIZE size;
-        GetTextExtentPoint32W(hdc, obj.getText(), obj.getLength(), &size);
-        obj.getLineWidth() = size.cx; // width in pixels of len characters
-        // Starting positions
-        float columnSpacing = 14; // horizontal gap between columns
-
-        bool filled = false;
-        unsigned long long track = 0;
-        float x = obj.getstartX(), y = obj.getstartY();
-       
-
-
-        //SHOW PAGE
-        int p = obj.getPageIndex();
-        int x_chars = 0;
-        // Loop over columns 
-        for (int c = 0; c < obj.getTotalColumns(); c++) {
-            if (filled) break;
-            // Loop over lines
-            for (int l = 0; l < obj.getTotalLines(); l++) {
-
-
-                unsigned long long start = obj.getPages()[p].getColumns()[c].getLine()[l].start;
-                int len = obj.getPages()[p].getColumns()[c].getLine()[l].len;
-                x_chars = len == 0 ? x_chars : len;
-                if (start == -1 || len == 0)continue;
-
-
-                // Calculate position
-                x = obj.getstartX() + c * (obj.getLineLength() * columnSpacing);
-                y = obj.getstartY() + l * obj.getLineHeight();
-                
-                //printing the line char by char if it is marked
-                bool isMarked = false;
-                //search for index of current line in highlights
-                for (int i = 0; i < obj.getMarkedIndex(); i++) {
-                    unsigned long long tempStart = obj.getMarkedText()[i].start;
-                    int tempLen = obj.getMarkedText()[i].len;
-                    if (tempStart >= start && tempLen < start + len) {
-                        isMarked = true;
-                        break;
-                    }
-                }
-                if (isMarked) {
-                    unsigned long long lineStart = start;
-                    unsigned long long lineEnd = start + len;
-                    int lineStartX = x;
-
-                    // Loop through each character on this line
-                    for (unsigned long long charIdx = lineStart; charIdx < lineEnd; charIdx++) {
-                        wchar_t ch = obj.getText()[charIdx];
-
-                        // if character is marked in our highlights, print red
-                        bool isRed = false;
-                        for (int i = 0; i < obj.getMarkedIndex(); i++) {
-                            unsigned long long markStart = obj.getMarkedText()[i].start;
-                            unsigned long long markLen = (unsigned long long)obj.getMarkedText()[i].len;
-                            unsigned long long markEnd = markStart + markLen;
-
-                            if (charIdx >= markStart && charIdx < markEnd) {
-                                isRed = true;
-                                break;
-                            }
-                        }
-
-                        // Set color and draw
-                        if (isRed) {
-                            SetTextColor(hdc, RGB(255, 0, 0));  // Red
-                        }
-                        else {
-                            SetTextColor(hdc, RGB(0, 0, 0));   // Black
-                        }
-
-                        TextOutW(hdc, x, y, &ch, 1);
-
-                        // Advance x position
-                        SIZE charSize;
-                        GetTextExtentPoint32W(hdc, &ch, 1, &charSize);
-                        x += charSize.cx;
-                    }
-
-                    obj.getLineWidth() = x - lineStartX;
-                }
-                
-                //if not marked
-                else {
-                    //check if start lies in our selected range
-                    if (obj.getselectionStart() >= start && obj.getselectionEnd() <= start + len) {
-                        SetTextColor(hdc, RGB(0, 0, 255)); // blue for selected                   
-                    }
-                    else {
-                        SetTextColor(hdc, RGB(0, 0, 0)); // black for normal
-                    }
-
-                    TextOutW(hdc, x, y, obj.getText() + start, len);
-                }
-                size;
-                GetTextExtentPoint32W(hdc, obj.getText() + start, len, &size);
-                obj.getLineWidth() = size.cx; // width in pixels of len characters
-                obj.getcharWidth() = obj.getLineWidth() / len;
-
-                //useful for cursor coordinates
-                obj.getPages()[p].getColumns()[c].getLine()[l].screenY = y;
-                obj.getPages()[p].getColumns()[c].getLine()[l].screenX = x;
-
-                // update track
-                track += len;
-                if (track >= obj.getLength()) {
-                    filled = true;
-                    break;
-                }
-            }
-        }
-        //showing search bar at top
-        int searchX = obj.getstartX();
-        int searchY = 0;
-
-        wchar_t searchTEXT[500];
-        int searchLen = merge(L"search(CTRL+F, ESC, ENTER): ", obj.getSearchText(), searchTEXT);
-        SetTextColor(hdc, RGB(255, 0, 0)); //red
-        TextOutW(hdc, searchX, searchY, searchTEXT, searchLen);
-
-        SetTextColor(hdc, RGB(0, 0, 0)); // black for normal
-
-
-
-        //place at the end
-        obj.getmaxCursorX() = x + ((x_chars)*obj.getcharWidth());
-        obj.getmaxCursorY() = y;
-
-        //rendering cursor
-        unsigned long long current_time = time(NULL);
-        unsigned long long elapsed_time = current_time - start_time;
-
-          //showing periodically
-        if (elapsed_time % 2 == 0) {
-            RECT cursorRect;
-      
-            cursorRect = { obj.getcursorX(), obj.getcursorY(),obj.getcursorX() + cursor_width, obj.getcursorY() + obj.getLineHeight() };
-
-            brush = CreateSolidBrush(RGB(0, 0, 0));
-            FillRect(hdc, &cursorRect, brush);
-            DeleteObject(brush);
-        }
-
-
-
-
-
-        //SHOWING FOOTER
-
-        int footerY = obj.getLineHeight() * obj.getTotalLines();
-        footerY += obj.getstartY();
-        //offset
-        footerY += 30;
-
-        // Create smaller font for footer
-        HFONT footerFont = CreateFontW(
-            14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-            CLEARTYPE_QUALITY, DEFAULT_PITCH, L"Courier New"
-        );
-
-        // Switch to footer font
-        HFONT oldFooterFont = (HFONT)SelectObject(hdc, footerFont);
-
-        // Draw footer for total words, characters and characters without spaces
-        wchar_t final[300];
-        wchar_t info1[100];
-        wchar_t info2[100];
-        wchar_t info3[100];
-
-        int len = 0;
-        const wchar_t* str2 = L"Total Words: ";
-        wchar_t arr[20];
-        convertToStr(obj.getTotalWords(), arr);
-        len += merge(str2, arr, info1);
-
-        str2 = L" | Total Characters: ";
-        convertToStr(obj.getLength(), arr);
-        len += merge(str2, arr, info2);
-
-        str2 = L"  | Total Characters without sapaces: ";
-        convertToStr(obj.getWithoutSp(), arr);
-        len += merge(str2, arr, info3);
-
-
-        concatenate(info1, info2, info3, final);
-
-        //add sentences count
-        str2 = L" | Total Sentences: ";
-        convertToStr(obj.getSentences(), arr);
-        wchar_t final2[400];
-
-        wchar_t info4[100];
-        len += merge(str2, arr, info4);
-        len = 0;
-        len += merge(final, info4, final2);
-
-        SetTextColor(hdc, RGB(0, 0, 0)); // black for normal
-
-        TextOutW(hdc, obj.getstartX(), footerY, final2, len);
-
-        //also page numbering, showing under middle column.
-        int val = obj.getTotalColumns() * obj.getLineLength();
-        int temp = obj.getstartX();
-        temp = val / 2;
-        temp *= obj.getcharWidth();
-
-        int page_numberX = temp;
-        footerY -= 20;
-        len = 0;
-        str2 = L"------";
-        convertToStr(obj.getPageIndex() + 1, arr);
-        concatenate(str2, arr, str2, final);
-        len = obj.getLen(final) - 1;
-        TextOutW(hdc, page_numberX, footerY, final, len);
-
-        //show search history
-        if (obj.getHistoryState()) {
-
-            footerY += 30;
-            SetTextColor(hdc, RGB(255,0, 0));
-            TextOutW(hdc, obj.getstartX(), footerY, L"====SEARCH HISTORY==== ", 24);
-            footerY += 10;
-            for (int i = 0; i < obj.getHistoryCap(); i++) {
-                const wchar_t* str2 = obj.getHistoryAt(i);
-                const wchar_t* str3 = L"  :  ";
-                int len = merge(str2, str3, final);
-                //skipping empty entries
-                if (obj.getHistoryCountAt(i) == 0)continue;
-
-                convertToStr(obj.getHistoryCountAt(i), arr);
-                len = merge(final, arr, final2);
-
-                //final string
-                SetTextColor(hdc, RGB(0, 0, 255));
-                TextOutW(hdc, obj.getstartX(), footerY, final2, len);
-
-                footerY += 10;
-            }
-        }
-
-
-        // Restore original font
-        SelectObject(hdc, oldFooterFont);
-
-        // Delete footer font
-        DeleteObject(footerFont);
-
+        //displaying
+        obj.render(hdc, hwnd,start_time);
 
 
         // Restore and cleanup
@@ -570,7 +250,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                         unsigned long long index = 0;
                         for (unsigned long long i = obj.getselectionEnd(); i <= obj.getselectionStart(); i++) {
                             pMem[index] = obj.getText()[i];
-                            wprintf(L"%c", pMem[index]);
+                         //   wprintf(L"%c", pMem[index]);
                             index++;
                         }
                         pMem[index] = L'\0';
@@ -720,7 +400,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         int x = LOWORD(lParam);
         int y = HIWORD(lParam);
-        wprintf(L"x: %d ,  y: %d\n", x, y);
+     //   wprintf(L"x: %d ,  y: %d\n", x, y);
 
         generateCursorInfo(x, y, obj.getCursorIndex(), obj.getcursorX(), obj.getcursorY());
         
@@ -731,7 +411,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     case WM_LBUTTONDOWN:{
         int x = LOWORD(lParam);
         int y = HIWORD(lParam);
-        wprintf(L"Selection Start at-> x: %d ,y:  %d!\n",x,y);
+       // wprintf(L"Selection Start at-> x: %d ,y:  %d!\n",x,y);
 
         //turn on selection
         obj.getselectionState() = true;
