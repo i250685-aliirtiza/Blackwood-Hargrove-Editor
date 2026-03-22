@@ -110,7 +110,11 @@ public:
     }
 };
 
-
+//search and highlight index
+struct Highlight {
+    unsigned long long start=-1;
+    int len=0;
+};
 
 //editor: consists of multiple pages, operations, text buffer, and methods
 class Editor {
@@ -122,6 +126,12 @@ private:
     //pages
     page* pages;
     int page_index;
+
+    //highlighting text
+    Highlight* marked_text;
+    int marked_text_cap;
+    int marked_text_index;
+
 
     int line_length, total_lines, total_columns, total_pages;
     int startX, startY;
@@ -147,12 +157,26 @@ private:
     int end_selectionY;
     int max_page;
 
+    bool searchState;
+    wchar_t searchText[300];
+    int searchIndex;
+
+    int minStartX = 40;
+    int minStartY = 40;
+
     //max line_length
     const int MAX_CAPACITY=90;
 
 public:
     //constructor
     Editor() {
+
+        searchState = false;
+        searchIndex = 0;
+         marked_text_cap = 10;
+         marked_text_index = 0;
+         marked_text = new Highlight[marked_text_cap];
+
         minLineLength = 5;
         minTotalLines = 1;
         minTotalColumns = 1;
@@ -190,6 +214,7 @@ public:
     ~Editor() {
         delete[] text;
         delete[] pages;
+        delete[] marked_text;
     }
 
 
@@ -290,6 +315,50 @@ public:
         return end_selectionY;
     }
 
+    bool& getSearchState() {
+        return searchState;
+    }
+    wchar_t* getSearchText() {
+        return searchText;
+    }
+    int& getSearchTextIndex() {
+        return searchIndex;
+    }
+
+    //get total marked highlight
+    int& getMarkedIndex() {
+        return marked_text_index;
+    }
+    Highlight* getMarkedText() {
+        return marked_text;
+    }
+
+    void pushback_highlight(unsigned long long start, int len) {
+          //resize if required
+        if (marked_text_index >= marked_text_cap) {
+            Highlight* copy = new Highlight[marked_text_cap * 2];
+
+            for (int i = 0; i < marked_text_index;i++) {
+                copy[i] = marked_text[i];
+            }
+            delete[] marked_text;
+            marked_text = copy;
+            marked_text_cap *= 2;
+        }
+        marked_text[marked_text_index].start = start;
+        marked_text[marked_text_index].len = len;
+         
+        marked_text_index++;
+    }
+
+    void clear_highlights() {
+        if (marked_text_index == 0)return;
+
+        delete[] marked_text;
+        marked_text_cap = 5;
+        marked_text = new Highlight[marked_text_cap];
+        marked_text_index = 0;
+    }
 
     //reading/writint files
     bool saveFile(const char* filename=nullptr) {
@@ -915,6 +984,63 @@ public:
 
         wprintf(L"start:  %d , end: %d\n", end_selection, start_selection);
     }
+
+
+    //implement search
+    void executeSearch() {
+        int p = page_index;
+        //clear old highlights
+        clear_highlights();
+
+
+        //get max and min index of this page
+        unsigned long long max = 0, min = pages[p].getColumns()[0].getLine()[0].start;
+        for (int c = 0; c < total_columns; c++) {
+            for (int l = 0; l < total_lines; l++) {
+                unsigned long long start = pages[p].getColumns()[c].getLine()[l].start;
+                unsigned long long index = start+pages[p].getColumns()[c].getLine()[l].len;
+                
+                if (start == -1)continue;
+                if (index > max)max = index-2;
+                if (min == -1) {
+                    min = start;
+                }
+
+            }
+        }
+
+
+        int index = 0;
+        unsigned long long j = min;
+        while (j <= max) {           
+            //if char found
+            if (text[j] == searchText[index]  || text[j]+32 == searchText[index] || text[j]-32 == searchText[index]) {
+                index++;
+            }
+            //if substring matched
+            else if(searchText[index]==L'\0') {
+                wprintf(L"found at: %d , char: %c\n", j - searchIndex-1, text[j - searchIndex-1]);
+                pushback_highlight(j - searchIndex-1, searchIndex);
+
+                //reset for next search
+                index = 0;
+            }
+            //reset index
+            else {
+                index = 0;
+            }
+
+            j++;
+        }
+        //last word check
+        if (searchText[index] == L'\0') {
+            wprintf(L"found at: %d , char: %c\n", j - searchIndex, text[j - searchIndex]);
+            pushback_highlight(j - searchIndex, searchIndex);
+        }
+
+
+    }
+
 
 };
 

@@ -184,15 +184,83 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 x = obj.getstartX() + c * (obj.getLineLength() * columnSpacing);
                 y = obj.getstartY() + l * obj.getLineHeight();
                 
-                //check if start lies in our selected range
-                if (obj.getselectionStart() >= start && obj.getselectionEnd() <= start + len) {
-                    SetTextColor(hdc, RGB(0, 0, 255)); // blue for selected                   
+                //printing the line char by char if it is marked
+                bool isMarked = false;
+                //search for index of current line in highlights
+                for (int i = 0; i < obj.getMarkedIndex(); i++) {
+                    unsigned long long tempStart = obj.getMarkedText()[i].start;
+                    int tempLen = obj.getMarkedText()[i].len;
+                    if (tempStart >= start && tempLen < start + len) {
+                        isMarked = true;
+                        break;
+                    }
                 }
+
+                if (isMarked) {
+                    unsigned long long lineStart = start;
+                    unsigned long long lineEnd = start + len;
+
+                    unsigned long long current = lineStart;
+
+                    //check all marked_text indices
+                    for (int i = 0; i < obj.getMarkedIndex(); i++) {
+                        unsigned long long markStart = obj.getMarkedText()[i].start;
+                        int markLen = obj.getMarkedText()[i].len;
+                        unsigned long long markEnd = markStart + markLen;
+
+                        // skip if highligh is on another line
+                        if (markEnd <= lineStart || markStart >= lineEnd) continue;
+
+                        //printing normal before marked
+                        if (markStart > current) {
+                            int blackLen = markStart - current;
+                            SetTextColor(hdc, RGB(0, 0, 0));
+                            TextOutW(hdc, x, y, obj.getText() + current, blackLen);
+                            SIZE size;
+                            GetTextExtentPoint32W(hdc, obj.getText() + current, blackLen, &size);
+                            x += size.cx;
+                        }
+
+                        // print the marked part
+                        unsigned long long highlightedStart = current > markStart ? current : markStart;
+                        int highlightedEnd = lineEnd < markEnd ? lineEnd : markEnd;
+                        int highlightLen = highlightedEnd - highlightedStart;
+
+                        SetTextColor(hdc, RGB(255, 0, 0)); // red for marked
+                        TextOutW(hdc, x, y, obj.getText() + highlightedStart, highlightLen);
+
+                        // update x-position
+                        SIZE size;
+                        GetTextExtentPoint32W(hdc, obj.getText() + highlightedStart, highlightLen, &size);
+                        x += size.cx;
+
+                        current = highlightedEnd;
+                    }
+
+                    // print remaining unmarked part after last marked region
+                    if (current < lineEnd) {
+                        int remainingLen = lineEnd - current;
+                        SetTextColor(hdc, RGB(0, 0, 0)); // black
+                        TextOutW(hdc, x, y, obj.getText() + current, remainingLen);
+                        SIZE size;
+                        GetTextExtentPoint32W(hdc, obj.getText() + current, remainingLen, &size);
+                        x += size.cx;
+                    }
+
+                    obj.getLineWidth() = x - size.cx;
+                }
+                //if not marked
                 else {
-                    SetTextColor(hdc, RGB(0, 0, 0)); // black for normal
+                    //check if start lies in our selected range
+                    if (obj.getselectionStart() >= start && obj.getselectionEnd() <= start + len) {
+                        SetTextColor(hdc, RGB(0, 0, 255)); // blue for selected                   
+                    }
+                    else {
+                        SetTextColor(hdc, RGB(0, 0, 0)); // black for normal
+                    }
+
+                    TextOutW(hdc, x, y, obj.getText() + start, len);
                 }
-                             
-                TextOutW(hdc, x, y, obj.getText() + start, len);
                 size;
                 GetTextExtentPoint32W(hdc, obj.getText() + start, len, &size);
                 obj.getLineWidth() = size.cx; // width in pixels of len characters
@@ -210,7 +278,16 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 }
             }
         }
+        //showing search bar at top
+        int searchX = obj.getstartX();
+        int searchY = 0;
 
+        wchar_t searchTEXT[500];
+        int searchLen = merge(L"search(CTRL+F, ESC, ENTER): ", obj.getSearchText(), searchTEXT);
+        SetTextColor(hdc, RGB(255, 0, 0)); //red
+        TextOutW(hdc, searchX, searchY, searchTEXT, searchLen);
+
+        SetTextColor(hdc, RGB(0, 0, 0)); // black for normal
 
 
 
@@ -232,6 +309,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             FillRect(hdc, &cursorRect, brush);
             DeleteObject(brush);
         }
+
 
 
 
@@ -319,60 +397,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     case WM_CHAR: {
 
    
-        //1 is ascii for ctrl+A
-        if (wParam == 1) {
-            obj.selectAll();
-            InvalidateRect(hwnd, NULL, FALSE);
-            break;
-        }
-        //PASTE TEXT
-        //22 is ascii for ctrl+V
-        if (wParam == 22) {
-            // Access clipboard and get text into wchar_t* temp
-            if (OpenClipboard(hwnd))
-            {
-                HANDLE hData = GetClipboardData(CF_UNICODETEXT); // get clipboard data
-                if (hData)
-                {
-                    wchar_t* pText = (wchar_t*)GlobalLock(hData); // lock the memory to get pointer
-                    if (pText)
-                    {
-                        //find length
-                        int  len = 0; 
-                        wchar_t* read = pText;
-                        while (*read) {
-                            read++; len++;
-                        }
-                        // Allocate array to store clipboard content
-                        wchar_t* temp = new wchar_t[len + 1];
 
-                        // Copy clipboard content
-                        for (size_t i = 0; i <= len; i++)
-                        {
-                            temp[i] = pText[i];
-                        }
-
-                        //if text selected
-                        if (obj.getselectionState()) {
-                            //delete selected text
-                            obj.deletePortion();
-                            InvalidateRect(hwnd, NULL, FALSE);
-                        }
-                        //insert to buffer
-                        for (int i = 0; i < len; i++) {
-                                obj.insertAt(obj.getCursorIndex(), temp[i]);
-                               }         
-                        obj.recalculateLayout();
-                        obj.getPageIndex() = obj.findCurrentPage();
-                        InvalidateRect(hwnd, NULL, FALSE);
-                        delete[] temp;
-                    }
-                }
-                CloseClipboard();
-            }
-            break;
-        }
-        
         //saving file
         if (wParam == 19) {
             bool val=obj.saveFile("dummy.txt");
@@ -382,120 +407,222 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         if (wParam == 15) {
             bool val = obj.loadFile("sample-text_for_editor.txt");
             obj.recalculateLayout();
-
+            //display latest page
+            obj.getPageIndex()=obj.getMaxPage();
             InvalidateRect(hwnd, NULL, FALSE);
-            wprintf(L"cursor index: %d\n", obj.getCursorIndex());
             break;
         }
-
-        //3 i ascii for ctrl +c
-        if (wParam == 3){
-            if (OpenClipboard(hwnd))
-            {
-                EmptyClipboard();
-
-               
-                int len = obj.getselectionStart() - obj.getselectionEnd()+1;// number of characters (without null)
-                if (len <=0) {
-                    break;
-                }
-
-
-                // 2. Allocate memory (include null terminator)
-                HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, (len + 1) * sizeof(wchar_t));
-
-                if (hMem)
-                {
-                    // 3. Copy data into allocated memory
-                    wchar_t* pMem = (wchar_t*)GlobalLock(hMem);
-                    unsigned long long index = 0;
-                    for (unsigned long long i = obj.getselectionEnd(); i <=obj.getselectionStart(); i++) {
-                        pMem[index] = obj.getText()[i];
-                        wprintf(L"%c", pMem[index]);
-                        index++;
-                    }
-                    pMem[index] = L'\0';
-
-                    GlobalUnlock(hMem);
-
-                    // 4. Send to clipboard
-                    SetClipboardData(CF_UNICODETEXT, hMem);
-                }
-
-                CloseClipboard();
-            }
+        
+        //if ctrl+F pressed
+        if (wParam == 6) {
+            obj.getSearchState() = true;
         }
-        // Backspace
-  
-        else if (wParam == '\b') {
 
-            //no need of deletion
-            if (obj.getLength() <= 1) {
-                obj.getCursorIndex() = 0;
-                obj.getLength() = 0;
-                obj.getWithoutSp() = 0;
-                obj.getText()[0] = '\0';
-                obj.getTotalWords() = 0;
-                obj.recalculateLayout();
+       
+        //implementing search text interception and backspace handling. 
+        if (obj.getSearchState()) {
+            // ESC pressed, cancel search, clear the text in it
+            if (wParam == 27) {
+                //clear the marked indices
+                obj.clear_highlights();
+                obj.getSearchState() = false;
+                obj.getSearchTextIndex() = 0;
+                obj.getSearchText()[obj.getSearchTextIndex()] = L'\0';
+             }
+            // Printable characters
+            else if (wParam >= 32 && wParam != 127) {
+                //don't take a word larger than 20 letters
+                if (obj.getSearchTextIndex() >= 20)break;
+
+                obj.getSearchText()[obj.getSearchTextIndex()] = wParam;
+                obj.getSearchTextIndex()++;
+                obj.getSearchText()[obj.getSearchTextIndex()] = L'\0';
 
             }
-            else {
-                //deletion required 
+            //backspace
+            else if (wParam == '\b') {
+                obj.getSearchText()[obj.getSearchTextIndex()] = L'\0';
 
-                 //clear selected area
+                if(obj.getSearchTextIndex()!=0)
+                     obj.getSearchTextIndex()--;
+            }
+            //enter pressed execute search
+            else if (wParam == '\r') {
+                wprintf(L"Searching.....\n");
+                obj.executeSearch();
+                InvalidateRect(hwnd, NULL, FALSE);
+
+            }
+ 
+        }
+        //ONLY RUN THESE OPERATIONS IF NOT IN SEARCH BOX    
+        else {
+            //1 is ascii for ctrl+A
+            if (wParam == 1) {
+                obj.selectAll();
+                InvalidateRect(hwnd, NULL, FALSE);
+                break;
+            }
+            //PASTE TEXT
+            //22 is ascii for ctrl+V
+            if (wParam == 22) {
+                // Access clipboard and get text into wchar_t* temp
+                if (OpenClipboard(hwnd))
+                {
+                    HANDLE hData = GetClipboardData(CF_UNICODETEXT); // get clipboard data
+                    if (hData)
+                    {
+                        wchar_t* pText = (wchar_t*)GlobalLock(hData); // lock the memory to get pointer
+                        if (pText)
+                        {
+                            //find length
+                            int  len = 0;
+                            wchar_t* read = pText;
+                            while (*read) {
+                                read++; len++;
+                            }
+                            // Allocate array to store clipboard content
+                            wchar_t* temp = new wchar_t[len + 1];
+
+                            // Copy clipboard content
+                            for (size_t i = 0; i <= len; i++)
+                            {
+                                temp[i] = pText[i];
+                            }
+
+                            //if text selected
+                            if (obj.getselectionState()) {
+                                //delete selected text
+                                obj.deletePortion();
+                                InvalidateRect(hwnd, NULL, FALSE);
+                            }
+                            //insert to buffer
+                            for (int i = 0; i < len; i++) {
+                                obj.insertAt(obj.getCursorIndex(), temp[i]);
+                            }
+                            obj.recalculateLayout();
+                            obj.getPageIndex() = obj.findCurrentPage();
+                            InvalidateRect(hwnd, NULL, FALSE);
+                            delete[] temp;
+                        }
+                    }
+                    CloseClipboard();
+                }
+                break;
+            }
+
+            //3 i ascii for ctrl +c
+            if (wParam == 3) {
+                if (OpenClipboard(hwnd))
+                {
+                    EmptyClipboard();
+
+
+                    int len = obj.getselectionStart() - obj.getselectionEnd() + 1;// number of characters (without null)
+                    if (len <= 0) {
+                        break;
+                    }
+
+
+                    // 2. Allocate memory (include null terminator)
+                    HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, (len + 1) * sizeof(wchar_t));
+
+                    if (hMem)
+                    {
+                        // 3. Copy data into allocated memory
+                        wchar_t* pMem = (wchar_t*)GlobalLock(hMem);
+                        unsigned long long index = 0;
+                        for (unsigned long long i = obj.getselectionEnd(); i <= obj.getselectionStart(); i++) {
+                            pMem[index] = obj.getText()[i];
+                            wprintf(L"%c", pMem[index]);
+                            index++;
+                        }
+                        pMem[index] = L'\0';
+
+                        GlobalUnlock(hMem);
+
+                        // 4. Send to clipboard
+                        SetClipboardData(CF_UNICODETEXT, hMem);
+                    }
+
+                    CloseClipboard();
+                }
+            }
+            // Backspace
+            else if (wParam == '\b') {
+
+                //no need of deletion
+                if (obj.getLength() <= 1) {
+                    obj.getCursorIndex() = 0;
+                    obj.getLength() = 0;
+                    obj.getWithoutSp() = 0;
+                    obj.getText()[0] = '\0';
+                    obj.getTotalWords() = 0;
+                    obj.recalculateLayout();
+
+                }
+                else {
+                    //deletion required 
+
+                     //clear selected area
+                    if (obj.getselectionState()) {
+                        obj.deletePortion();
+                        obj.getselectionState() = false;
+                    }
+                    InvalidateRect(hwnd, NULL, FALSE);
+
+                    obj.deleteBack(obj.getCursorIndex());
+                    obj.recalculateLayout();
+                    obj.getPageIndex() = obj.findCurrentPage();
+                }
+
+                InvalidateRect(hwnd, NULL, FALSE);
+            }
+            // Enter key
+            else if (wParam == '\r') {
+                //clear selected area
                 if (obj.getselectionState()) {
                     obj.deletePortion();
                     obj.getselectionState() = false;
                 }
                 InvalidateRect(hwnd, NULL, FALSE);
 
-                obj.deleteBack(obj.getCursorIndex());
-                obj.recalculateLayout();     
+                obj.insertAt(obj.getCursorIndex(), '\n');
+                obj.recalculateLayout();
                 obj.getPageIndex() = obj.findCurrentPage();
+
+                InvalidateRect(hwnd, NULL, FALSE);
+
             }
+            // Printable characters
+            else if (wParam >= 32 && wParam != 127) {
+                //clear selected area
+                if (obj.getselectionState()) {
+                    obj.deletePortion();
+                    obj.getselectionState() = false;
+                }
+                InvalidateRect(hwnd, NULL, FALSE);
 
-            InvalidateRect(hwnd, NULL, FALSE);
-        }
-            
-        // Enter key
-        else if (wParam == '\r') {
-            //clear selected area
-            if (obj.getselectionState()) {
-                obj.deletePortion();
-                obj.getselectionState() = false;
+                obj.insertAt(obj.getCursorIndex(), (wchar_t)wParam);
+
+                obj.recalculateLayout();
+                obj.getPageIndex() = obj.findCurrentPage();
+
+                InvalidateRect(hwnd, NULL, FALSE);
+
             }
-            InvalidateRect(hwnd, NULL, FALSE);
-
-            obj.insertAt(obj.getCursorIndex(), '\n');
-            obj.recalculateLayout();
-            obj.getPageIndex() = obj.findCurrentPage();
-
-            InvalidateRect(hwnd, NULL, FALSE);
-
         }
-        // Printable characters
-        else if (wParam >= 32 && wParam != 127) {            
-            //clear selected area
-            if (obj.getselectionState()) {
-                obj.deletePortion();
-                obj.getselectionState() = false;
-            }
-            InvalidateRect(hwnd, NULL, FALSE);
-            
-            obj.insertAt(obj.getCursorIndex(), (wchar_t)wParam);
-
-            obj.recalculateLayout();
-            obj.getPageIndex() = obj.findCurrentPage();
-
-            InvalidateRect(hwnd, NULL, FALSE);
-
-        }
+        
+        
         return 0;
-    }
+    
+}
 
 
     case WM_KEYDOWN: {
-        if (wParam == VK_DELETE) {
+
+        if(!obj.getSearchState())
+            if (wParam == VK_DELETE) {
             //clear selected area
             if (obj.getselectionState()) {
                 obj.deletePortion();
