@@ -166,6 +166,15 @@ private:
 
     int sentences;
 
+    bool showHistory;
+
+    wchar_t searchHistory[5][100];
+    int searchHistoryIndex = 0;
+    int searchHistoryCapacity = 5;
+
+    int searchHistoryCounts[5] = { 0 };
+
+
     //max line_length
     const int MAX_CAPACITY=90;
 
@@ -173,11 +182,19 @@ public:
     //constructor
     Editor() {
         sentences = 0;
+        showHistory = false;
         searchState = false;
         searchIndex = 0;
          marked_text_cap = 10;
          marked_text_index = 0;
          marked_text = new Highlight[marked_text_cap];
+
+    
+        //initialize search history to \0
+         for (int i = 0; i < searchHistoryCapacity; i++) {
+             searchHistory[i][0] = '\0';
+        }
+
 
         minLineLength = 5;
         minTotalLines = 1;
@@ -327,6 +344,13 @@ public:
         return searchIndex;
     }
 
+    bool& getHistoryState() {
+        return showHistory;
+    }
+    int& getHistoryCap() {
+        return searchHistoryCapacity;
+    }
+
     //get total marked highlight
     int& getMarkedIndex() {
         return marked_text_index;
@@ -338,6 +362,18 @@ public:
     int& getSentences() {
         return sentences;
     }
+    
+    const wchar_t* getHistoryAt(int i) {
+        if (i >= searchHistoryCapacity)i = searchHistoryCapacity - 1;
+        return searchHistory[i];
+    }
+    int getHistoryCountAt(int i) {
+        if (i >= searchHistoryCapacity)i = searchHistoryCapacity - 1;
+
+        return searchHistoryCounts[i];
+    }
+
+
 
     void pushback_highlight(unsigned long long start, int len) {
           //resize if required
@@ -584,7 +620,7 @@ public:
     //filling our layout
     void recalculateLayout() {
         // Read through `text`, break it into lines/columns/pages
-        words = 0; withoutSpaces = 0;
+        words = 0; withoutSpaces = 0; sentences = 0;
         // Clear previous layout
         for (int p = 0; p <= max_page; p++) {
             for (int c = 0; c < total_columns; c++) {
@@ -792,8 +828,6 @@ public:
      
 
         if (i > length)i = length;
-
-        wprintf(L"index: %d\n", i);
         if (i == length) {
             append(c);
             cursorX = getmaxCursorX();
@@ -991,14 +1025,68 @@ public:
         start_selection = pages[page_index].getColumns()[c].getLine()[l].start+ pages[page_index].getColumns()[c].getLine()[l].len;
         start_selection-=2;
         selectionState = true;
-
-        wprintf(L"start:  %d , end: %d\n", end_selection, start_selection);
     }
 
+
+    bool compareStr(const wchar_t* ptr1, const wchar_t* ptr2) {
+        while (*ptr1 && *ptr2) {
+            if (*ptr1 != *ptr2 && *ptr1 + 32 != *ptr2 && *ptr1 - 32 != *ptr2)return false;
+
+            ptr1++; ptr2++;
+
+         }
+
+        if (*ptr1 || *ptr2)return false;
+
+        return true;
+
+    }
+
+    void writeToStr(const wchar_t* read, wchar_t* write) {
+        while (*read) {
+            *write = *read;
+            read++; write++;
+        }
+        *write = '\0';
+    }
+
+    //save search to history
+    void saveSearch(const wchar_t* str) {
+
+        //check if it exists, if it does, increment the count and return
+        for (int i = 0; i < searchHistoryCapacity; i++) {
+            if (compareStr(str, searchHistory[i])) {
+                searchHistoryCounts[i]++;
+                return;
+            }
+        }
+        
+
+        //shifting both arrays to right
+        for (int i = searchHistoryCapacity-1; i > 0; i--) {
+            writeToStr(searchHistory[i - 1], searchHistory[i]);
+            searchHistoryCounts[i] = searchHistoryCounts[i - 1];
+        }
+
+        //adding on top
+        writeToStr(str, searchHistory[0]);
+        searchHistoryCounts[0] = 1;
+
+
+        for (int i = 0; i < 5; i++) {
+            wprintf(L"string: %s , count: %d\n", searchHistory[i],searchHistoryCounts[i]);
+        }
+
+
+    }
 
     //implement search
     void executeSearch() {
         int p = page_index;
+
+        //add to history
+        saveSearch(searchText);
+
         //clear old highlights
         clear_highlights();
 
@@ -1029,8 +1117,9 @@ public:
             }
             //if substring matched
             else if(searchText[index]==L'\0') {
-                wprintf(L"found at: %d , char: %c\n", j - searchIndex-1, text[j - searchIndex-1]);
                 pushback_highlight(j - searchIndex-1, searchIndex);
+                wprintf(L"%c\n", text[j - searchIndex-1]);
+                
 
                 //reset for next search
                 index = 0;
@@ -1044,13 +1133,11 @@ public:
         }
         //last word check
         if (searchText[index] == L'\0') {
-            wprintf(L"found at: %d , char: %c\n", j - searchIndex, text[j - searchIndex]);
-            pushback_highlight(j - searchIndex, searchIndex);
+            pushback_highlight(j - searchIndex-1, searchIndex);
         }
 
 
     }
-
 
 };
 

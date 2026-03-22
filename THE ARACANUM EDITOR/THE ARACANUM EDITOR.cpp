@@ -192,60 +192,47 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                         break;
                     }
                 }
-
                 if (isMarked) {
                     unsigned long long lineStart = start;
                     unsigned long long lineEnd = start + len;
+                    int lineStartX = x;
 
-                    unsigned long long current = lineStart;
+                    // Loop through each character on this line
+                    for (unsigned long long charIdx = lineStart; charIdx < lineEnd; charIdx++) {
+                        wchar_t ch = obj.getText()[charIdx];
 
-                    //check all marked_text indices
-                    for (int i = 0; i < obj.getMarkedIndex(); i++) {
-                        unsigned long long markStart = obj.getMarkedText()[i].start;
-                        int markLen = obj.getMarkedText()[i].len;
-                        unsigned long long markEnd = markStart + markLen;
+                        // if character is marked in our highlights, print red
+                        bool isRed = false;
+                        for (int i = 0; i < obj.getMarkedIndex(); i++) {
+                            unsigned long long markStart = obj.getMarkedText()[i].start;
+                            unsigned long long markLen = (unsigned long long)obj.getMarkedText()[i].len;
+                            unsigned long long markEnd = markStart + markLen;
 
-                        // skip if highligh is on another line
-                        if (markEnd <= lineStart || markStart >= lineEnd) continue;
-
-                        //printing normal before marked
-                        if (markStart > current) {
-                            int blackLen = markStart - current;
-                            SetTextColor(hdc, RGB(0, 0, 0));
-                            TextOutW(hdc, x, y, obj.getText() + current, blackLen);
-                            SIZE size;
-                            GetTextExtentPoint32W(hdc, obj.getText() + current, blackLen, &size);
-                            x += size.cx;
+                            if (charIdx >= markStart && charIdx < markEnd) {
+                                isRed = true;
+                                break;
+                            }
                         }
 
-                        // print the marked part
-                        unsigned long long highlightedStart = current > markStart ? current : markStart;
-                        int highlightedEnd = lineEnd < markEnd ? lineEnd : markEnd;
-                        int highlightLen = highlightedEnd - highlightedStart;
+                        // Set color and draw
+                        if (isRed) {
+                            SetTextColor(hdc, RGB(255, 0, 0));  // Red
+                        }
+                        else {
+                            SetTextColor(hdc, RGB(0, 0, 0));   // Black
+                        }
 
-                        SetTextColor(hdc, RGB(255, 0, 0)); // red for marked
-                        TextOutW(hdc, x, y, obj.getText() + highlightedStart, highlightLen);
+                        TextOutW(hdc, x, y, &ch, 1);
 
-                        // update x-position
-                        SIZE size;
-                        GetTextExtentPoint32W(hdc, obj.getText() + highlightedStart, highlightLen, &size);
-                        x += size.cx;
-
-                        current = highlightedEnd;
+                        // Advance x position
+                        SIZE charSize;
+                        GetTextExtentPoint32W(hdc, &ch, 1, &charSize);
+                        x += charSize.cx;
                     }
 
-                    // print remaining unmarked part after last marked region
-                    if (current < lineEnd) {
-                        int remainingLen = lineEnd - current;
-                        SetTextColor(hdc, RGB(0, 0, 0)); // black
-                        TextOutW(hdc, x, y, obj.getText() + current, remainingLen);
-                        SIZE size;
-                        GetTextExtentPoint32W(hdc, obj.getText() + current, remainingLen, &size);
-                        x += size.cx;
-                    }
-
-                    obj.getLineWidth() = x - size.cx;
+                    obj.getLineWidth() = x - lineStartX;
                 }
+                
                 //if not marked
                 else {
                     //check if start lies in our selected range
@@ -380,6 +367,31 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         len = obj.getLen(final) - 1;
         TextOutW(hdc, page_numberX, footerY, final, len);
 
+        //show search history
+        if (obj.getHistoryState()) {
+
+            footerY += 30;
+            SetTextColor(hdc, RGB(255,0, 0));
+            TextOutW(hdc, obj.getstartX(), footerY, L"====SEARCH HISTORY==== ", 24);
+            footerY += 10;
+            for (int i = 0; i < obj.getHistoryCap(); i++) {
+                const wchar_t* str2 = obj.getHistoryAt(i);
+                const wchar_t* str3 = L"  :  ";
+                int len = merge(str2, str3, final);
+                //skipping empty entries
+                if (obj.getHistoryCountAt(i) == 0)continue;
+
+                convertToStr(obj.getHistoryCountAt(i), arr);
+                len = merge(final, arr, final2);
+
+                //final string
+                SetTextColor(hdc, RGB(0, 0, 255));
+                TextOutW(hdc, obj.getstartX(), footerY, final2, len);
+
+                footerY += 10;
+            }
+        }
+
 
         // Restore original font
         SelectObject(hdc, oldFooterFont);
@@ -425,19 +437,29 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             obj.getSearchState() = true;
         }
 
+        //ctrl+H for history
+        if (wParam == 8) {
+            //if already shown then close
+            if (obj.getHistoryState()==true) {
+                obj.getHistoryState() = false;
+                InvalidateRect(hwnd, NULL, FALSE);
+            }
+            else
+            obj.getHistoryState()=true;
+        }
+        // ESC pressed, cancel search, clear the text in it
+        if (wParam == 27) {
+            //clear the marked indices
+            obj.clear_highlights();
+            obj.getSearchState() = false;
+            obj.getSearchTextIndex() = 0;
+            obj.getSearchText()[obj.getSearchTextIndex()] = L'\0';
+        }
        
         //implementing search text interception and backspace handling. 
         if (obj.getSearchState()) {
-            // ESC pressed, cancel search, clear the text in it
-            if (wParam == 27) {
-                //clear the marked indices
-                obj.clear_highlights();
-                obj.getSearchState() = false;
-                obj.getSearchTextIndex() = 0;
-                obj.getSearchText()[obj.getSearchTextIndex()] = L'\0';
-             }
             // Printable characters
-            else if (wParam >= 32 && wParam != 127) {
+            if (wParam >= 32 && wParam != 127) {
                 //don't take a word larger than 20 letters
                 if (obj.getSearchTextIndex() >= 20)break;
 
@@ -455,7 +477,14 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             }
             //enter pressed execute search
             else if (wParam == '\r') {
-                wprintf(L"Searching.....\n");
+                //if empty array
+                if (obj.getSearchTextIndex() == 0) {
+                    //clear the marked indices
+                    obj.clear_highlights();
+                    obj.getSearchState() = false;
+                    InvalidateRect(hwnd, NULL, FALSE);
+                    break;
+                }
                 obj.executeSearch();
                 InvalidateRect(hwnd, NULL, FALSE);
 
