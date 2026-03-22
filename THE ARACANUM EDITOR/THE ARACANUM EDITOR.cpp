@@ -65,9 +65,6 @@ void concatenate(const wchar_t* read1, const wchar_t* read2, const wchar_t* read
     *write = L'\0';
 }
 
-
-
-
 Editor obj;
 
 //converting screen x y click to valid buffer index
@@ -343,20 +340,30 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         convertToStr(obj.getTotalWords(), arr);
         len += merge(str2, arr, info1);
 
-        str2 = L"  Total Characters: ";
+        str2 = L" | Total Characters: ";
         convertToStr(obj.getLength(), arr);
         len += merge(str2, arr, info2);
 
-        str2 = L"  Total Characters without sapaces: ";
+        str2 = L"  | Total Characters without sapaces: ";
         convertToStr(obj.getWithoutSp(), arr);
         len += merge(str2, arr, info3);
 
 
         concatenate(info1, info2, info3, final);
 
+        //add sentences count
+        str2 = L" | Total Sentences: ";
+        convertToStr(obj.getSentences(), arr);
+        wchar_t final2[400];
+
+        wchar_t info4[100];
+        len += merge(str2, arr, info4);
+        len = 0;
+        len += merge(final, info4, final2);
+
         SetTextColor(hdc, RGB(0, 0, 0)); // black for normal
 
-        TextOutW(hdc, obj.getstartX(), footerY, final, len);
+        TextOutW(hdc, obj.getstartX(), footerY, final2, len);
 
         //also page numbering, showing under middle column.
         int val = obj.getTotalColumns() * obj.getLineLength();

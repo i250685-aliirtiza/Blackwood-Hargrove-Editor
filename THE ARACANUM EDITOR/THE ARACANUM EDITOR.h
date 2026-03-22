@@ -164,13 +164,15 @@ private:
     int minStartX = 40;
     int minStartY = 40;
 
+    int sentences;
+
     //max line_length
     const int MAX_CAPACITY=90;
 
 public:
     //constructor
     Editor() {
-
+        sentences = 0;
         searchState = false;
         searchIndex = 0;
          marked_text_cap = 10;
@@ -331,6 +333,10 @@ public:
     }
     Highlight* getMarkedText() {
         return marked_text;
+    }
+
+    int& getSentences() {
+        return sentences;
     }
 
     void pushback_highlight(unsigned long long start, int len) {
@@ -601,7 +607,11 @@ public:
                 //calculate without spaces chars
                 for (unsigned long long j = 0; j < length; j++) {
                     if (text[j] != L' ' && text[j] != L'\n')withoutSpaces++;
+
+                    if (text[j] == '.' || text[j] == '?' || text[j] == '!')sentences++;
                 }
+             
+
                 return;
             }
 
@@ -1043,6 +1053,7 @@ public:
 
 
 };
+
 
 
 
