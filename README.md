@@ -29,43 +29,85 @@ Line / Column / Page – Layout hierarchy for rendering text efficiently.
 Data Structures:
 
 Line – Represents a single line of text with screen coordinates.
+
 Column – Array of Lines for a page column.
+
 Page – Array of Columns forming a page.
+
 Highlight – Marks search results in the buffer.
+
 Key Features
+
+
 OOP Refactor – Fully object-oriented design for modularity
+
 Text Operations – Insert, delete, select, copy, paste
+
 Search & Highlight – Case-insensitive search with history panel
+
 Layout Controls – Dynamic lines, columns, and line-length adjustments
+
 Page Navigation – Up/Down arrow keys navigate pages
+
 Footer Stats – Words, characters, sentences, and page number
+
 Keyboard Shortcuts
+
+
 Shortcut	Action
+
 Ctrl+S	Save document
+
 Ctrl+O	Load sample text
+
 Ctrl+N	New tab
+
 Ctrl+Q	Close tab
+
 Ctrl+Tab	Next tab
+
 Ctrl+Shift+Tab	Previous tab
+
 Ctrl+F	Open search
+
 Ctrl+Shift+H	Toggle search history
+
 Ctrl+L	Lines-per-column input
+
 Ctrl+W	Line-length input
+
 Ctrl+K	Columns-per-page input
+
 Ctrl+A	Select all
+
 Ctrl+C / Ctrl+V	Copy / Paste
+
 Backspace / Delete	Delete character(s)
+
 Enter	Newline
+
 VK_UP / VK_DOWN	Page navigation
+
 Right-click	Place cursor
+
 Left-click + drag	Select text
+
 ESC	Close search / clear highlights
 
+
 Limitations
+
+
+
 Text buffer is flat (wchar_t*), so insertions are O(n)
+
 Search operates only on the current page
+
 Undo/redo not implemented
+
 Hardcoded filenames for save/load
+
 Monospace font recommended for proper cursor alignment
+
 
 Blackwood & Hargrove — THE ARCANUM EDITOR — March 2026
