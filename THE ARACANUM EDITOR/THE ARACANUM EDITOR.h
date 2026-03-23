@@ -1874,6 +1874,29 @@ public:
         getActiveEditor().recalculateLayout();
     }
 
+    //closing current tab, only if there are more than 1 tabs
+    void closeTab() {
+        if (size < 2)return;
+
+        //make copy tabs missing this one
+        Editor* copy = new Editor[size - 1];
+        int j = 0;
+        for (int i = 0; i < size; i++) {
+            if (i == current_tab)continue;
+
+            copy[j] = tab[i];
+            j++;
+        }
+        size = j;
+        delete[] tab;
+        tab = copy;     
+
+        //show previous
+        if (current_tab - 1 >= 0) {
+            current_tab--;
+        }        
+    }
+
 };
 
 

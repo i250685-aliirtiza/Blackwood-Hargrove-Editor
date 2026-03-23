@@ -111,6 +111,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
     case WM_CHAR: {
 
+
    
 
         //saving file
@@ -138,6 +139,12 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             InvalidateRect(hwnd, NULL, FALSE);
         }
 
+        //closing current tab, ctrl+Q
+        else if (wParam == 17) {
+            tab.closeTab();
+            InvalidateRect(hwnd, NULL, FALSE);
+            break;
+        }
 
         //ctrl+L  for line settings on top
         else if (wParam == 12) {
