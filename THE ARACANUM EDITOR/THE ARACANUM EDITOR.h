@@ -178,12 +178,39 @@ private:
     int searchHistoryCounts[5] = { 0 };
 
 
+    //run time controls 
+    wchar_t layoutInfoLines[100] = {'\0'};
+    wchar_t layoutInfoLineLength[100] = { '\0' };
+    wchar_t layoutInfoColumns[100] = { '\0' };
+
+    int layoutInfoLinesIndex=0;
+    int layoutInfoLineLengthIndex=0;
+    int layoutInfoColumnsIndex=0;
+
+    bool layoutInfoLinesState = false;
+    bool layoutInfoLineLengthState = false;
+    bool layoutInfoColumnsState = false;
+   
+
+
     //max line_length
     const int MAX_CAPACITY=90;
 
 public:
     //constructor
     Editor() {
+
+         layoutInfoLinesIndex = 0;
+         layoutInfoLineLengthIndex = 0;
+         layoutInfoColumnsIndex = 0;
+
+
+        layoutInfoLinesState = false;
+         layoutInfoLineLengthState = false;
+        layoutInfoColumnsState = false;
+        layoutInfoLines[0] = '\0' ;
+        layoutInfoLineLength[0] =  '\0' ;
+        layoutInfoColumns[0] = '\0' ;
         sentences = 0;
         showHistory = false;
         searchState = false;
@@ -201,7 +228,7 @@ public:
 
         minLineLength = 5;
         minTotalLines = 1;
-        minTotalColumns = 1;
+        minTotalColumns = 2;
 
         capacity = 10000;
         text = new wchar_t[capacity];
@@ -241,6 +268,7 @@ public:
 
     //copy constructor
     Editor(const Editor& other) {
+
         this->capacity = other.capacity;
         this->length = other.length;
         this->cursor_width = other.cursor_width;
@@ -546,6 +574,62 @@ public:
         return sentences;
     }
 
+
+    bool& getlayoutInfoLinesState() {
+        return layoutInfoLinesState;
+    } 
+    bool& getlayoutInfoLineLengthState() {
+        return layoutInfoLineLengthState;
+    }
+    bool& getlayoutInfoColumnsState() {
+        return layoutInfoColumnsState;
+    }
+
+    int& getlayoutInfoLinesIndex() {
+        return layoutInfoLinesIndex;
+    }
+    int& getlayoutInfoLineLengthIndex() {
+        return layoutInfoLineLengthIndex;
+    }
+    int& getlayoutInfoColumnsIndex() {
+        return layoutInfoColumnsIndex;
+    }
+
+
+    wchar_t* getlayoutInfoLines() {
+        return layoutInfoLines;
+    }
+    wchar_t* getlayoutInfoLineLength() {
+        return layoutInfoLineLength;
+    }
+    wchar_t* getlayoutInfoColumns() {
+        return layoutInfoColumns;
+    }
+
+
+    void clearSearchandLayoutInfo() {
+        //clear the marked indices
+        getSearchState() = false;
+        getSearchTextIndex() = 0;
+        getSearchText()[0] = L'\0';
+
+        //clear layout info states
+        getlayoutInfoLinesState() = false;
+        getlayoutInfoLineLengthState() = false;
+        getlayoutInfoColumnsState() = false;
+
+        //reset indices
+        getlayoutInfoLinesIndex() = 0;
+        getlayoutInfoLineLengthIndex() = 0;
+        getlayoutInfoColumnsIndex() = 0;
+
+        //clear layout info text arrays
+        getlayoutInfoLines()[0] = L'\0';
+        getlayoutInfoLineLength()[0] = L'\0';
+        getlayoutInfoColumns()[0] = L'\0';
+    }
+
+
     //helper int to char, for words, total chars etc
     void convertToStr(int num, wchar_t arr[]) {
         if (num == 0) {
@@ -672,8 +756,8 @@ public:
                     int lineStartX = x;
 
                     // Loop through each character on this line
-                    for (unsigned long long charIdx = lineStart; charIdx < lineEnd; charIdx++) {
-                        wchar_t ch = getText()[charIdx];
+                    for (unsigned long long char_index = lineStart; char_index < lineEnd; char_index++) {
+                        wchar_t ch = getText()[char_index];
 
                         // if character is marked in our highlights, print red
                         bool isRed = false;
@@ -682,7 +766,7 @@ public:
                             unsigned long long markLen = (unsigned long long)getMarkedText()[i].len;
                             unsigned long long markEnd = markStart + markLen;
 
-                            if (charIdx >= markStart && charIdx < markEnd) {
+                            if (char_index >= markStart && char_index <= markEnd) {
                                 isRed = true;
                                 break;
                             }
@@ -736,16 +820,57 @@ public:
                 }
             }
         }
+     
+        
+        
         //showing search bar at top
-        int searchX = getstartX();
-        int searchY = 0;
+        if (searchState) {
+            int searchX = getstartX();
+            int searchY = 0;
 
-        wchar_t searchTEXT[500];
-        int searchLen = merge(L"search(CTRL+F, ESC, ENTER): ", getSearchText(), searchTEXT);
-        SetTextColor(hdc, RGB(255, 0, 0)); //red
-        TextOutW(hdc, searchX, searchY, searchTEXT, searchLen);
+            wchar_t searchTEXT[500];
+            int searchLen = merge(L"search(CTRL+F, ESC, ENTER): ", getSearchText(), searchTEXT);
+            SetTextColor(hdc, RGB(255, 0, 0)); //red
+            TextOutW(hdc, searchX, searchY, searchTEXT, searchLen);
+
+        }
+      
+        
+        //LINE SETTINGS
+        //showing layout info lines at top
+        else if (layoutInfoLinesState) {
+            int layoutX = getstartX();
+            int layoutY = 0;
+            wchar_t layoutLineTEXT[500];
+            int layoutLen = merge(L"lines(CTRL+L, ESC, ENTER): ", getlayoutInfoLines(), layoutLineTEXT);
+            SetTextColor(hdc, RGB(0, 255, 0)); //green
+            TextOutW(hdc, layoutX, layoutY, layoutLineTEXT, layoutLen);
+        }
+        //showing layout info line length at top
+        else if (layoutInfoLineLengthState) {
+            int layoutX = getstartX();
+            int layoutY = 0;
+            wchar_t layoutLineTEXT[500];
+
+            int layoutLen = merge(L"line length(CTRL+K, ESC, ENTER): ", getlayoutInfoLineLength(),layoutLineTEXT);
+
+            SetTextColor(hdc, RGB(0, 255, 0)); //green
+            TextOutW(hdc, layoutX, layoutY, layoutLineTEXT, layoutLen);
+        }
+        //showing layout info columns at top
+        else if (layoutInfoColumnsState) {
+            int layoutX = getstartX();
+            int layoutY = 0;
+            wchar_t layoutLineTEXT[500];
+
+            int layoutLen = merge(L"columns(CTRL+C, ESC, ENTER): ", getlayoutInfoColumns(),layoutLineTEXT);
+
+            SetTextColor(hdc, RGB(0, 255, 0)); //green
+            TextOutW(hdc, layoutX, layoutY, layoutLineTEXT, layoutLen);
+        }
 
         SetTextColor(hdc, RGB(128, 128, 128)); // black for normal
+
 
 
 
@@ -935,7 +1060,8 @@ public:
         marked_text_index = 0;
     }
 
-    //reading/writint files
+    //reading/writing files
+    //save file
     bool saveFile(const char* filename=nullptr) {
         //if user hasn't passed name
         if (filename == nullptr) {
@@ -970,6 +1096,7 @@ public:
             append(c);
         }
         text[length] = L'\0';
+        readFile.close();
         return true;
     }
 
@@ -1748,6 +1875,8 @@ public:
     }
 
 };
+
+
 
 
 

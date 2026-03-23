@@ -3,10 +3,13 @@
 #include<stdio.h>
 #include<ctime>
 
+
 unsigned long long start_time = time(NULL);
 
 Tabs tab; //array of editors
 
+
+//HELPERS
 //converting screen x y click to valid buffer index
 void generateCursorInfo(int x, int y,unsigned long long& index, int& cursorX, int& cursorY) {
 
@@ -60,6 +63,21 @@ void generateCursorInfo(int x, int y,unsigned long long& index, int& cursorX, in
     cursorX = temp;
   //  wprintf(L"x: %d , y: %d , index: %d , cursorX: %d , cursorY= %d\n",x,y,index,cursorX,cursorY);
 }
+
+
+int convertToInt(wchar_t* read) {
+    //array always contains digits
+    int num = 0;
+    while (*read) {
+        num *= 10;
+        num += *read - 48;
+        read++;
+    }
+
+    return num;
+}
+
+
 
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
@@ -121,32 +139,44 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         }
 
 
+        //ctrl+L  for line settings on top
+        else if (wParam == 12) {
+            tab.getActiveEditor().clearSearchandLayoutInfo();
+            tab.getActiveEditor().getlayoutInfoLinesState() = true;
+            InvalidateRect(hwnd, NULL, FALSE);
+        }
 
+        //ctrl+W for line length settings on top
+        else if (wParam == 23) {
+            tab.getActiveEditor().clearSearchandLayoutInfo();
+            tab.getActiveEditor().getlayoutInfoLineLengthState() = true;
+            InvalidateRect(hwnd, NULL, FALSE);
+        }
+
+        //ctrl+K for column settings on top
+        else if (wParam == 11) {
+            tab.getActiveEditor().clearSearchandLayoutInfo();
+            tab.getActiveEditor().getlayoutInfoColumnsState() = true;
+            InvalidateRect(hwnd, NULL, FALSE);
+        }
 
         //if ctrl+F pressed
         else if (wParam == 6) {
+            tab.getActiveEditor().clearSearchandLayoutInfo();
             tab.getActiveEditor().getSearchState() = true;
+            InvalidateRect(hwnd, NULL, FALSE);
         }
 
-        //ctrl+H for history
-        else if (wParam == 8) {
-            //if already shown then close
-            if (tab.getActiveEditor().getHistoryState()==true) {
-                tab.getActiveEditor().getHistoryState() = false;
-                InvalidateRect(hwnd, NULL, FALSE);
-            }
-            else
-            tab.getActiveEditor().getHistoryState()=true;
-        }
-        // ESC pressed, cancel search, clear the text in it
+
+        // ESC pressed
         else if (wParam == 27) {
-            //clear the marked indices
             tab.getActiveEditor().clear_highlights();
-            tab.getActiveEditor().getSearchState() = false;
-            tab.getActiveEditor().getSearchTextIndex() = 0;
-            tab.getActiveEditor().getSearchText()[tab.getActiveEditor().getSearchTextIndex()] = L'\0';
+            tab.getActiveEditor().clearSearchandLayoutInfo();
+            InvalidateRect(hwnd, NULL, FALSE);
         }
-       
+
+
+
         //implementing search text interception and backspace handling. 
         if (tab.getActiveEditor().getSearchState()) {
             // Printable characters
@@ -163,8 +193,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             else if (wParam == '\b') {
                 tab.getActiveEditor().getSearchText()[tab.getActiveEditor().getSearchTextIndex()] = L'\0';
 
-                if(tab.getActiveEditor().getSearchTextIndex()!=0)
-                     tab.getActiveEditor().getSearchTextIndex()--;
+                if (tab.getActiveEditor().getSearchTextIndex() != 0)
+                    tab.getActiveEditor().getSearchTextIndex()--;
             }
             //enter pressed execute search
             else if (wParam == '\r') {
@@ -180,9 +210,190 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 InvalidateRect(hwnd, NULL, FALSE);
 
             }
- 
+
         }
-        //ONLY RUN THESE OPERATIONS IF NOT IN SEARCH BOX    
+
+
+        //if layoutline setting active
+        else if (tab.getActiveEditor().getlayoutInfoLinesState()) {
+            //input only numbers.
+            if (wParam >= 48 && wParam <59) {
+                //don't take a number with digits>4
+                if (tab.getActiveEditor().getlayoutInfoLinesIndex() > 4) {
+
+                    int value = convertToInt(tab.getActiveEditor().getlayoutInfoLines());
+                    tab.getActiveEditor().setTotalLines(value);
+
+                    tab.getActiveEditor().getlayoutInfoLinesState() = false;
+                    tab.getActiveEditor().getlayoutInfoLinesIndex() = 0;
+                    tab.getActiveEditor().getlayoutInfoLines()[0] = L'\0';
+
+                    tab.getActiveEditor().recalculateLayout();
+                    InvalidateRect(hwnd, NULL, FALSE);
+
+                    break;
+
+                }
+
+                tab.getActiveEditor().getlayoutInfoLines()[tab.getActiveEditor().getlayoutInfoLinesIndex()] = wParam;
+                tab.getActiveEditor().getlayoutInfoLinesIndex()++;
+                tab.getActiveEditor().getlayoutInfoLines()[tab.getActiveEditor().getlayoutInfoLinesIndex()] = L'\0';
+
+            }
+            //backspace
+            else if (wParam == '\b') {
+                tab.getActiveEditor().getlayoutInfoLines()[tab.getActiveEditor().getlayoutInfoLinesIndex()] = L'\0';
+
+                if (tab.getActiveEditor().getlayoutInfoLinesIndex() != 0)
+                    tab.getActiveEditor().getlayoutInfoLinesIndex()--;
+            }
+            //enter pressed pass values to verify new layout
+            else if (wParam == '\r') {
+                //if empty array
+                if (tab.getActiveEditor().getlayoutInfoLinesIndex() == 0) {
+                    //clear
+                    tab.getActiveEditor().getlayoutInfoLinesState() = false;
+                    InvalidateRect(hwnd, NULL, FALSE);
+                    break;
+                }
+                
+
+                //else convert to int and pass to setLines
+                int value = convertToInt(tab.getActiveEditor().getlayoutInfoLines());
+                tab.getActiveEditor().setTotalLines(value);
+
+                tab.getActiveEditor().getlayoutInfoLinesState() = false;
+                tab.getActiveEditor().getlayoutInfoLinesIndex() = 0;
+                tab.getActiveEditor().getlayoutInfoLines()[0] = L'\0';
+
+                tab.getActiveEditor().recalculateLayout();
+                InvalidateRect(hwnd, NULL, FALSE);
+
+                break;
+
+            }
+        }
+
+        //if LineLength setting active
+        else if (tab.getActiveEditor().getlayoutInfoLineLengthState()) {
+            //input only numbers
+            if (wParam >= 48 && wParam < 59) {
+
+                if (tab.getActiveEditor().getlayoutInfoLineLengthIndex() > 4) {
+
+                    int value = convertToInt(tab.getActiveEditor().getlayoutInfoLineLength());
+                    tab.getActiveEditor().setLineLength(value);
+
+                    tab.getActiveEditor().getlayoutInfoLineLengthState() = false;
+                    tab.getActiveEditor().getlayoutInfoLineLengthIndex() = 0;
+                    tab.getActiveEditor().getlayoutInfoLineLength()[0] = L'\0';
+
+                    tab.getActiveEditor().recalculateLayout();
+                    InvalidateRect(hwnd, NULL, FALSE);
+
+                    break;
+                }
+
+                tab.getActiveEditor().getlayoutInfoLineLength()
+                    [tab.getActiveEditor().getlayoutInfoLineLengthIndex()] = wParam;
+
+                tab.getActiveEditor().getlayoutInfoLineLengthIndex()++;
+
+                tab.getActiveEditor().getlayoutInfoLineLength()
+                    [tab.getActiveEditor().getlayoutInfoLineLengthIndex()] = L'\0';
+            }
+            //backspace
+            else if (wParam == '\b') {
+                tab.getActiveEditor().getlayoutInfoLineLength()
+                    [tab.getActiveEditor().getlayoutInfoLineLengthIndex()] = L'\0';
+
+                if (tab.getActiveEditor().getlayoutInfoLineLengthIndex() != 0)
+                    tab.getActiveEditor().getlayoutInfoLineLengthIndex()--;
+            }
+            //enter
+            else if (wParam == '\r') {
+
+                if (tab.getActiveEditor().getlayoutInfoLineLengthIndex() == 0) {
+                    tab.getActiveEditor().getlayoutInfoLineLengthState() = false;
+                    InvalidateRect(hwnd, NULL, FALSE);
+                    break;
+                }
+
+                int value = convertToInt(tab.getActiveEditor().getlayoutInfoLineLength());
+                tab.getActiveEditor().setLineLength(value);
+
+                tab.getActiveEditor().getlayoutInfoLineLengthState() = false;
+                tab.getActiveEditor().getlayoutInfoLineLengthIndex() = 0;
+                tab.getActiveEditor().getlayoutInfoLineLength()[0] = L'\0';
+
+                tab.getActiveEditor().recalculateLayout();
+                InvalidateRect(hwnd, NULL, FALSE);
+
+                break;
+            }
+        }
+
+        //if Columns setting active
+        else if (tab.getActiveEditor().getlayoutInfoColumnsState()) {
+            //input only numbers
+            if (wParam >= 48 && wParam < 59) {
+
+                if (tab.getActiveEditor().getlayoutInfoColumnsIndex() > 4) {
+
+                    int value = convertToInt(tab.getActiveEditor().getlayoutInfoColumns());
+                    tab.getActiveEditor().setTotalColumns(value);
+
+                    tab.getActiveEditor().getlayoutInfoColumnsState() = false;
+                    tab.getActiveEditor().getlayoutInfoColumnsIndex() = 0;
+                    tab.getActiveEditor().getlayoutInfoColumns()[0] = L'\0';
+
+                    tab.getActiveEditor().recalculateLayout();
+                    InvalidateRect(hwnd, NULL, FALSE);
+
+                    break;
+                }
+
+                tab.getActiveEditor().getlayoutInfoColumns()
+                    [tab.getActiveEditor().getlayoutInfoColumnsIndex()] = wParam;
+
+                tab.getActiveEditor().getlayoutInfoColumnsIndex()++;
+
+                tab.getActiveEditor().getlayoutInfoColumns()
+                    [tab.getActiveEditor().getlayoutInfoColumnsIndex()] = L'\0';
+            }
+            //backspace
+            else if (wParam == '\b') {
+                tab.getActiveEditor().getlayoutInfoColumns()
+                    [tab.getActiveEditor().getlayoutInfoColumnsIndex()] = L'\0';
+
+                if (tab.getActiveEditor().getlayoutInfoColumnsIndex() != 0)
+                    tab.getActiveEditor().getlayoutInfoColumnsIndex()--;
+            }
+            //enter
+            else if (wParam == '\r') {
+
+                if (tab.getActiveEditor().getlayoutInfoColumnsIndex() == 0) {
+                    tab.getActiveEditor().getlayoutInfoColumnsState() = false;
+                    InvalidateRect(hwnd, NULL, FALSE);
+                    break;
+                }
+
+                int value = convertToInt(tab.getActiveEditor().getlayoutInfoColumns());
+                tab.getActiveEditor().setTotalColumns(value);
+
+                tab.getActiveEditor().getlayoutInfoColumnsState() = false;
+                tab.getActiveEditor().getlayoutInfoColumnsIndex() = 0;
+                tab.getActiveEditor().getlayoutInfoColumns()[0] = L'\0';
+
+                tab.getActiveEditor().recalculateLayout();
+                InvalidateRect(hwnd, NULL, FALSE);
+
+                break;
+            }
+        }
+
+
+        //ONLY RUN THESE OPERATIONS IF NOT IN SETTINGS BOX 
         else {
             //1 is ascii for ctrl+A
             if (wParam == 1) {
@@ -240,12 +451,25 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
             //3 i ascii for ctrl +c
             if (wParam == 3) {
+                //check selection state
+                if (tab.getActiveEditor().getselectionState() == 0)break;
+
+
+
                 if (OpenClipboard(hwnd))
                 {
                     EmptyClipboard();
 
+                    int len=0;
 
-                    int len = tab.getActiveEditor().getselectionStart() - tab.getActiveEditor().getselectionEnd() + 1;// number of characters (without null)
+                    if (tab.getActiveEditor().getselectionStart() <= tab.getActiveEditor().getselectionEnd()) {
+                        len = tab.getActiveEditor().getselectionEnd() - tab.getActiveEditor().getselectionStart() + 1;
+                    }
+                    else {
+                        len = tab.getActiveEditor().getselectionStart() - tab.getActiveEditor().getselectionEnd() + 1;
+                    }
+
+                    // optional safety check
                     if (len <= 0) {
                         break;
                     }
@@ -259,9 +483,18 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                         // 3. Copy data into allocated memory
                         wchar_t* pMem = (wchar_t*)GlobalLock(hMem);
                         unsigned long long index = 0;
-                        for (unsigned long long i = tab.getActiveEditor().getselectionEnd(); i <= tab.getActiveEditor().getselectionStart(); i++) {
+                        unsigned long long start=0, end=0;
+                        if (tab.getActiveEditor().getselectionStart() <= tab.getActiveEditor().getselectionEnd()) {
+                            start = tab.getActiveEditor().getselectionStart();
+                            end = tab.getActiveEditor().getselectionEnd();
+                        }
+                        else {
+                            start = tab.getActiveEditor().getselectionEnd();
+                            end = tab.getActiveEditor().getselectionStart();
+                        }
+                        for (unsigned long long i = start; i <= end; i++) {
                             pMem[index] = tab.getActiveEditor().getText()[i];
-                         //   wprintf(L"%c", pMem[index]);
+                            wprintf(L"%c", pMem[index]);
                             index++;
                         }
                         pMem[index] = L'\0';
@@ -275,6 +508,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                     CloseClipboard();
                 }
             }
+       
+            
             // Backspace
             else if (wParam == '\b') {
                 
@@ -347,6 +582,21 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
 
     case WM_KEYDOWN: {
+
+        //ctrl+shift+H for history
+        if (wParam == 'H' && (GetKeyState(VK_CONTROL) & 0x8000) && (GetKeyState(VK_SHIFT) & 0x8000)) {
+            //turn off if already on
+            if (tab.getActiveEditor().getHistoryState() == true) {
+                tab.getActiveEditor().getHistoryState() = false;
+            }
+            else {
+                tab.getActiveEditor().getHistoryState() = true;
+            }
+
+            InvalidateRect(hwnd, NULL, FALSE);
+        }
+
+
         //moving in between tabs
 
         //shift tab move backwards
@@ -526,6 +776,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     ShowWindow(hwnd, nCmdShow);
     UpdateWindow(hwnd);
+
 
     SetTimer(hwnd, 1, 200, NULL); //for cursor tracking,it calls WM_TIMER
 
