@@ -606,7 +606,7 @@ public:
     }
 
 
-    void render(HDC& hdc, HWND& hwnd,unsigned long long start_time) {
+    void render(HDC& hdc, HWND& hwnd,unsigned long long start_time,int current_tab,int total_tabs) {
 
         // Clear background
         RECT rect;
@@ -762,8 +762,8 @@ public:
             RECT cursorRect;
 
             cursorRect = { getcursorX(), getcursorY(),getcursorX() + cursor_width, getcursorY() + getLineHeight() };
-
-            brush = CreateSolidBrush(RGB(0, 0, 0));
+            //cursor color
+            brush = CreateSolidBrush(RGB(255, 255, 255));
             FillRect(hdc, &cursorRect, brush);
             DeleteObject(brush);
         }
@@ -840,6 +840,23 @@ public:
         concatenate(str2, arr, str2, final);
         len = getLen(final) - 1;
         TextOutW(hdc, page_numberX, footerY, final, len);
+
+        //show current tab in same line
+        str2 = L"DOCUMENT: (";
+        convertToStr(current_tab+1, arr);
+        len = 0;
+        len += merge(str2, arr, info1);
+        str2 = L" / ";
+        convertToStr(total_tabs, arr);
+        len = 0;
+        len += merge(str2, arr, info2);
+        len += merge(info1, info2, info3);
+        str2 = L")";
+        len = 0;
+        len += merge(info3, str2, info4);
+        SetTextColor(hdc, RGB(0, 200, 200));
+        int document_x = page_numberX <= 200 ? page_numberX + 200 : page_numberX - 200;
+        TextOutW(hdc, document_x, footerY, info4, len);
 
         //show search history
         if (getHistoryState()) {
@@ -1144,6 +1161,8 @@ public:
                 for (int l = 0; l < total_lines; l++) {
                     pages[p].getColumns()[c].getLine()[l].start = -1;
                     pages[p].getColumns()[c].getLine()[l].len = 0;
+                    pages[p].getColumns()[c].getLine()[l].screenX = startX;
+                    pages[p].getColumns()[c].getLine()[l].screenY = startY;
                 }
             }
         }
@@ -1658,22 +1677,19 @@ public:
 
 };
 
-
-
 //multiple tabs
 class Tabs {
 private:
     Editor* tab;
     int size;
-    int capacity;
     int current_tab;
+    const int MAX_TABS = 10;
 public:
     //constructor
     Tabs() {
-        size = 0;
-        capacity = 2;
+        size = 1;
         current_tab = 0;
-        tab = new Editor[capacity];
+        tab = new Editor[size];
     }
     //destructor
     ~Tabs() {
@@ -1681,17 +1697,19 @@ public:
     }
     //if user wants to add new tab
     void appendTabs() {
+        if (size >= MAX_TABS)return;
+
+        //wprintf(L"appendTabs called\n");
         //resize
-        if (size >= capacity) {
-            Editor* copy = new Editor[capacity * 2];
+            Editor* copy = new Editor[size +1];
             for (int i = 0; i < size; i++) {
                 copy[i] = tab[i];
             }
+            
             delete[] tab;
             tab = copy;
-            capacity *= 2;
-        }
-
+           // wprintf(L"successfully resized\n");
+  
         size++;
     }
 
@@ -1699,29 +1717,34 @@ public:
     Editor& getActiveEditor() {
         return tab[current_tab];
     }
+    int getTotalTabs() {
+        return size;
+    }
 
     int getCurrentTabIndex() {
         return current_tab;
     }
     //switching view to next tab    
     void incrementTab() {
-        if(current_tab+1<=size)
+        if(current_tab+1<size)
         current_tab++;
+        getActiveEditor().recalculateLayout();
     }
     //previous
     void decrementTab() {
         if (current_tab - 1 >= 0) {
             current_tab--;
+            getActiveEditor().recalculateLayout();
         }
     }
 
     //switching to nth tab
     void switchTo(int i=0) {
-        if (i<0 || i>size) {
-            return;
-        }
-
+        wprintf(L"size(1 index based): %d    , current tab(0 index): %d \n", size, i);
+        if (i < 0)i = 0;
+        else if (i >=size)i = size-1;        
         current_tab = i;
+        getActiveEditor().recalculateLayout();
     }
 
 };

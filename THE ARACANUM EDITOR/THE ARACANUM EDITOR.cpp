@@ -76,7 +76,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         SetTextColor(hdc, RGB(0, 0, 0));
 
         //displaying
-        tab.getActiveEditor().render(hdc, hwnd, start_time);
+        tab.getActiveEditor().render(hdc, hwnd, start_time,tab.getCurrentTabIndex(),tab.getTotalTabs());
 
 
         // Restore and cleanup
@@ -101,7 +101,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             break;
         }
         //opening file
-        if (wParam == 15) {
+        else if (wParam == 15) {
             bool val = tab.getActiveEditor().loadFile("sample-text_for_editor.txt");
             tab.getActiveEditor().recalculateLayout();
             //display latest page
@@ -110,13 +110,26 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             break;
         }
         
+        //ctrl+N pressed, add new tab
+        else if (wParam == 14) {
+            wprintf(L"shift+N called\n");
+            tab.appendTabs();
+            //go to that tab
+            tab.switchTo(tab.getTotalTabs());
+            tab.getActiveEditor().recalculateLayout();
+            InvalidateRect(hwnd, NULL, FALSE);
+        }
+
+
+
+
         //if ctrl+F pressed
-        if (wParam == 6) {
+        else if (wParam == 6) {
             tab.getActiveEditor().getSearchState() = true;
         }
 
         //ctrl+H for history
-        if (wParam == 8) {
+        else if (wParam == 8) {
             //if already shown then close
             if (tab.getActiveEditor().getHistoryState()==true) {
                 tab.getActiveEditor().getHistoryState() = false;
@@ -126,7 +139,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             tab.getActiveEditor().getHistoryState()=true;
         }
         // ESC pressed, cancel search, clear the text in it
-        if (wParam == 27) {
+        else if (wParam == 27) {
             //clear the marked indices
             tab.getActiveEditor().clear_highlights();
             tab.getActiveEditor().getSearchState() = false;
@@ -264,7 +277,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             }
             // Backspace
             else if (wParam == '\b') {
-
+                
                 //no need of deletion
                 if (tab.getActiveEditor().getLength() <= 1) {
                     tab.getActiveEditor().getCursorIndex() = 0;
@@ -334,6 +347,26 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
 
     case WM_KEYDOWN: {
+        //moving in between tabs
+
+        //shift tab move backwards
+        if (wParam == VK_TAB && (GetKeyState(VK_CONTROL) & 0x8000) & (GetKeyState(VK_SHIFT) & 0x8000)) {
+            tab.decrementTab();
+            //display length
+            wprintf(L"Length: %d\n", tab.getActiveEditor().getLength());
+            tab.getActiveEditor().recalculateLayout();
+            InvalidateRect(hwnd, NULL, FALSE);
+        }
+
+
+        //tab pressed move forward
+        else if ((wParam == VK_TAB) && (GetKeyState(VK_CONTROL) & 0x8000)){
+            tab.incrementTab();
+            tab.getActiveEditor().recalculateLayout();
+            InvalidateRect(hwnd, NULL, FALSE);
+        }
+        
+
 
         if(!tab.getActiveEditor().getSearchState())
             if (wParam == VK_DELETE) {
