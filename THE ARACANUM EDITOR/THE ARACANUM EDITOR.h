@@ -120,6 +120,7 @@ struct Highlight {
 
 //editor: consists of multiple pages, operations, text buffer, and methods
 class Editor {
+
 private:
     unsigned long long capacity;
     wchar_t* text;
@@ -191,7 +192,7 @@ public:
          marked_text_index = 0;
          marked_text = new Highlight[marked_text_cap];
 
-    
+         searchText[0] = L'\0';
         //initialize search history to \0
          for (int i = 0; i < searchHistoryCapacity; i++) {
              searchHistory[i][0] = '\0';
@@ -218,10 +219,10 @@ public:
         cursor_to_text_index = length;
         max_page = 0;
         selectionState=false;
-        start_selection-1;
+        start_selection=-1;
         end_selection=-1;
         start_selectionX=-1;
-        start_selectionY-1;
+        start_selectionY=-1;
         end_selectionX=-1;
         end_selectionY=-1;
 
@@ -238,6 +239,186 @@ public:
         delete[] marked_text;
     }
 
+    //copy constructor
+    Editor(const Editor& other) {
+        this->capacity = other.capacity;
+        this->length = other.length;
+        this->cursor_width = other.cursor_width;
+        this->page_index = other.page_index;
+
+        this->line_length = other.line_length;
+        this->total_lines = other.total_lines;
+        this->total_columns = other.total_columns;
+        this->total_pages = other.total_pages;
+        this->startX = other.startX;
+        this->startY = other.startY;
+        this->char_width = other.char_width;
+        this->lineHeight = other.lineHeight;
+        this->lineWidth = other.lineWidth;
+        this->cursorX = other.cursorX;
+        this->cursorY = other.cursorY;
+        this->cursor_to_text_index = other.cursor_to_text_index;
+        this->maxCursorX = other.maxCursorX;
+        this->maxCursorY = other.maxCursorY;
+        this->words = other.words;
+        this->withoutSpaces = other.withoutSpaces;
+        this->minLineLength = other.minLineLength;
+        this->minTotalLines = other.minTotalLines;
+        this->minTotalColumns = other.minTotalColumns;
+        this->selectionState = other.selectionState;
+        this->start_selection = other.start_selection;
+        this->end_selection = other.end_selection;
+        this->start_selectionX = other.start_selectionX;
+        this->start_selectionY = other.start_selectionY;
+        this->end_selectionX = other.end_selectionX;
+        this->end_selectionY = other.end_selectionY;
+        this->max_page = other.max_page;
+        this->searchState = other.searchState;
+        this->searchIndex = other.searchIndex;
+        this->sentences = other.sentences;
+        this->showHistory = other.showHistory;
+        this->searchHistoryIndex = other.searchHistoryIndex;
+        this->searchHistoryCapacity = other.searchHistoryCapacity;
+
+        //char arrays
+        const wchar_t* read = other.searchText;
+        wchar_t* write = this->searchText;
+        while (*read) {
+            *write = *read;
+            read++;
+            write++;
+            
+        }
+        *write = L'\0';
+
+        for (int i = 0; i < 5; i++) {
+            this->searchHistoryCounts[i] = other.searchHistoryCounts[i];
+            for (int j = 0; j < 100; j++) {
+                if (other.searchHistory[i][j] == '\0') {
+                    this->searchHistory[i][j] = '\0';
+                    break;
+                }
+                else this->searchHistory[i][j] = other.searchHistory[i][j];
+            }
+        }
+
+        //copy text array
+        this->text = new wchar_t[this->capacity];
+        for (unsigned long long i = 0; i < this->length; i++)
+            this->text[i] = other.text[i];
+
+        //copy pages
+        this->pages = new page[other.total_pages];
+        for (int i = 0; i < other.total_pages; i++) {
+            this->pages[i] = other.pages[i];
+        }
+        
+  
+
+        this->marked_text_cap = other.marked_text_cap;
+        this->marked_text_index = other.marked_text_index;
+        this->marked_text = new Highlight[this->marked_text_cap];
+        for (int i = 0; i < this->marked_text_index; i++) {
+            this->marked_text[i] = other.marked_text[i];
+        }
+        
+
+    }
+
+    //assignment operator
+    Editor& operator=(const Editor& other) {
+        //self assignment
+        if (this == &other)return *this;
+
+        //delete old
+        delete[] text;
+        delete[] pages;
+        delete[] marked_text;
+
+        this->capacity = other.capacity;
+        this->length = other.length;
+        this->cursor_width = other.cursor_width;
+        this->page_index = other.page_index;
+
+        this->line_length = other.line_length;
+        this->total_lines = other.total_lines;
+        this->total_columns = other.total_columns;
+        this->total_pages = other.total_pages;
+        this->startX = other.startX;
+        this->startY = other.startY;
+        this->char_width = other.char_width;
+        this->lineHeight = other.lineHeight;
+        this->lineWidth = other.lineWidth;
+        this->cursorX = other.cursorX;
+        this->cursorY = other.cursorY;
+        this->cursor_to_text_index = other.cursor_to_text_index;
+        this->maxCursorX = other.maxCursorX;
+        this->maxCursorY = other.maxCursorY;
+        this->words = other.words;
+        this->withoutSpaces = other.withoutSpaces;
+        this->minLineLength = other.minLineLength;
+        this->minTotalLines = other.minTotalLines;
+        this->minTotalColumns = other.minTotalColumns;
+        this->selectionState = other.selectionState;
+        this->start_selection = other.start_selection;
+        this->end_selection = other.end_selection;
+        this->start_selectionX = other.start_selectionX;
+        this->start_selectionY = other.start_selectionY;
+        this->end_selectionX = other.end_selectionX;
+        this->end_selectionY = other.end_selectionY;
+        this->max_page = other.max_page;
+        this->searchState = other.searchState;
+        this->searchIndex = other.searchIndex;
+        this->sentences = other.sentences;
+        this->showHistory = other.showHistory;
+        this->searchHistoryIndex = other.searchHistoryIndex;
+        this->searchHistoryCapacity = other.searchHistoryCapacity;
+
+        //char arrays
+        const wchar_t* read = other.searchText;
+        wchar_t* write = this->searchText;
+        while (*read) {
+            *write = *read;
+            read++;
+            write++;
+
+        }
+        *write = L'\0';
+
+        for (int i = 0; i < 5; i++) {
+            this->searchHistoryCounts[i] = other.searchHistoryCounts[i];
+            for (int j = 0; j < 100; j++) {
+                if (other.searchHistory[i][j] == '\0') {
+                    this->searchHistory[i][j] = '\0';
+                    break;
+                }
+                else this->searchHistory[i][j] = other.searchHistory[i][j];
+            }
+        }
+
+        //copy text array
+        this->text = new wchar_t[this->capacity];
+        for (unsigned long long i = 0; i < this->length; i++)
+            this->text[i] = other.text[i];
+
+        //copy pages
+        this->pages = new page[other.total_pages];
+        for (int i = 0; i < other.total_pages; i++) {
+            this->pages[i] = other.pages[i];
+        }
+
+
+
+        this->marked_text_cap = other.marked_text_cap;
+        this->marked_text_index = other.marked_text_index;
+        this->marked_text = new Highlight[this->marked_text_cap];
+        for (int i = 0; i < this->marked_text_index; i++) {
+            this->marked_text[i] = other.marked_text[i];
+        }
+
+
+        return *this;
+    }
 
 
 
@@ -430,7 +611,7 @@ public:
         // Clear background
         RECT rect;
         GetClientRect(hwnd, &rect);
-        HBRUSH brush = CreateSolidBrush(RGB(255, 255, 255));
+        HBRUSH brush = CreateSolidBrush(RGB(0, 0,0));//gray
         FillRect(hdc, &rect, brush);
         DeleteObject(brush);
 
@@ -512,7 +693,7 @@ public:
                             SetTextColor(hdc, RGB(255, 0, 0));  // Red
                         }
                         else {
-                            SetTextColor(hdc, RGB(0, 0, 0));   // Black
+                            SetTextColor(hdc, RGB(255,255,255));   //white
                         }
 
                         TextOutW(hdc, x, y, &ch, 1);
@@ -533,7 +714,7 @@ public:
                         SetTextColor(hdc, RGB(0, 0, 255)); // blue for selected                   
                     }
                     else {
-                        SetTextColor(hdc, RGB(0, 0, 0)); // black for normal
+                        SetTextColor(hdc, RGB(255, 255, 255)); // white for normal
                     }
 
                     TextOutW(hdc, x, y, getText() + start, len);
@@ -564,7 +745,7 @@ public:
         SetTextColor(hdc, RGB(255, 0, 0)); //red
         TextOutW(hdc, searchX, searchY, searchTEXT, searchLen);
 
-        SetTextColor(hdc, RGB(0, 0, 0)); // black for normal
+        SetTextColor(hdc, RGB(128, 128, 128)); // black for normal
 
 
 
@@ -641,7 +822,7 @@ public:
         len = 0;
         len += merge(final, info4, final2);
 
-        SetTextColor(hdc, RGB(0, 0, 0)); // black for normal
+        SetTextColor(hdc, RGB(255, 255, 255)); // black for normal
 
         TextOutW(hdc, getstartX(), footerY, final2, len);
 
@@ -678,7 +859,7 @@ public:
                 len = merge(final, arr, final2);
 
                 //final string
-                SetTextColor(hdc, RGB(0, 0, 255));
+                SetTextColor(hdc, RGB(0,255,0));
                 TextOutW(hdc, getstartX(), footerY, final2, len);
 
                 footerY += 10;
@@ -1477,6 +1658,73 @@ public:
 
 };
 
+
+
+//multiple tabs
+class Tabs {
+private:
+    Editor* tab;
+    int size;
+    int capacity;
+    int current_tab;
+public:
+    //constructor
+    Tabs() {
+        size = 0;
+        capacity = 2;
+        current_tab = 0;
+        tab = new Editor[capacity];
+    }
+    //destructor
+    ~Tabs() {
+        delete[] tab;
+    }
+    //if user wants to add new tab
+    void appendTabs() {
+        //resize
+        if (size >= capacity) {
+            Editor* copy = new Editor[capacity * 2];
+            for (int i = 0; i < size; i++) {
+                copy[i] = tab[i];
+            }
+            delete[] tab;
+            tab = copy;
+            capacity *= 2;
+        }
+
+        size++;
+    }
+
+    //get current working tab
+    Editor& getActiveEditor() {
+        return tab[current_tab];
+    }
+
+    int getCurrentTabIndex() {
+        return current_tab;
+    }
+    //switching view to next tab    
+    void incrementTab() {
+        if(current_tab+1<=size)
+        current_tab++;
+    }
+    //previous
+    void decrementTab() {
+        if (current_tab - 1 >= 0) {
+            current_tab--;
+        }
+    }
+
+    //switching to nth tab
+    void switchTo(int i=0) {
+        if (i<0 || i>size) {
+            return;
+        }
+
+        current_tab = i;
+    }
+
+};
 
 
 

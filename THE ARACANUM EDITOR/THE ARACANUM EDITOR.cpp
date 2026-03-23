@@ -5,9 +5,7 @@
 
 unsigned long long start_time = time(NULL);
 
-
-
-Editor obj;
+Tabs tab; //array of editors
 
 //converting screen x y click to valid buffer index
 void generateCursorInfo(int x, int y,unsigned long long& index, int& cursorX, int& cursorY) {
@@ -15,13 +13,13 @@ void generateCursorInfo(int x, int y,unsigned long long& index, int& cursorX, in
     //find line 
     int activeLine = 0, activePage = 0, activeColumn = 0;
     bool filled = false;
-    for (int p = 0; p <=obj.getPageIndex(); p++) {
-        for (int c = 0; c < obj.getTotalColumns(); c++) {
-            for (int l = 0; l < obj.getTotalLines(); l++) {
-                int screenY = obj.getPages()[p].getColumns()[c].getLine()[l].screenY;
-                int screenX = obj.getPages()[p].getColumns()[c].getLine()[l].screenX;
+    for (int p = 0; p <=tab.getActiveEditor().getPageIndex(); p++) {
+        for (int c = 0; c < tab.getActiveEditor().getTotalColumns(); c++) {
+            for (int l = 0; l < tab.getActiveEditor().getTotalLines(); l++) {
+                int screenY = tab.getActiveEditor().getPages()[p].getColumns()[c].getLine()[l].screenY;
+                int screenX = tab.getActiveEditor().getPages()[p].getColumns()[c].getLine()[l].screenX;
               //  wprintf(L"screenY: %d\n", screenY);
-                if (y>=screenY && y<=screenY+obj.getLineHeight() && !filled){
+                if (y>=screenY && y<=screenY+tab.getActiveEditor().getLineHeight() && !filled){
                     activeLine = l;
                     cursorY = screenY;
                     activePage = p;
@@ -37,9 +35,9 @@ void generateCursorInfo(int x, int y,unsigned long long& index, int& cursorX, in
     }
 
     //find active column
-    for (int c = 0; c < obj.getTotalColumns(); c++) {
-        int min = obj.getPages()[activePage].getColumns()[c].getLine()[activeLine].screenX;
-        int max = min + obj.getLineLength() * obj.getcharWidth();
+    for (int c = 0; c < tab.getActiveEditor().getTotalColumns(); c++) {
+        int min = tab.getActiveEditor().getPages()[activePage].getColumns()[c].getLine()[activeLine].screenX;
+        int max = min + tab.getActiveEditor().getLineLength() * tab.getActiveEditor().getcharWidth();
         if (x>=min && x<=max) {
             activeColumn = c;
             break;
@@ -47,17 +45,17 @@ void generateCursorInfo(int x, int y,unsigned long long& index, int& cursorX, in
     }
 
     //approximate char index
-    int screenX = obj.getPages()[activePage].getColumns()[activeColumn].getLine()[activeLine].screenX;
+    int screenX = tab.getActiveEditor().getPages()[activePage].getColumns()[activeColumn].getLine()[activeLine].screenX;
     int temp = screenX;
     int jump = 0;
-    int len = obj.getPages()[activePage].getColumns()[activeColumn].getLine()[activeLine].len;
+    int len = tab.getActiveEditor().getPages()[activePage].getColumns()[activeColumn].getLine()[activeLine].len;
 
     while (jump < len && temp<x) {
-        temp += obj.getcharWidth();
+        temp += tab.getActiveEditor().getcharWidth();
         jump++;
     }
     //we have line, column, page and offset. generate index wrt text buffer
-    int start = obj.getPages()[obj.getPageIndex()].getColumns()[activeColumn].getLine()[activeLine].start;
+    int start = tab.getActiveEditor().getPages()[tab.getActiveEditor().getPageIndex()].getColumns()[activeColumn].getLine()[activeLine].start;
     index = start + jump;
     cursorX = temp;
   //  wprintf(L"x: %d , y: %d , index: %d , cursorX: %d , cursorY= %d\n",x,y,index,cursorX,cursorY);
@@ -78,7 +76,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         SetTextColor(hdc, RGB(0, 0, 0));
 
         //displaying
-        obj.render(hdc, hwnd,start_time);
+        tab.getActiveEditor().render(hdc, hwnd, start_time);
 
 
         // Restore and cleanup
@@ -99,73 +97,73 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         //saving file
         if (wParam == 19) {
-            bool val=obj.saveFile("dummy.txt");
+            bool val=tab.getActiveEditor().saveFile("dummy.txt");
             break;
         }
         //opening file
         if (wParam == 15) {
-            bool val = obj.loadFile("sample-text_for_editor.txt");
-            obj.recalculateLayout();
+            bool val = tab.getActiveEditor().loadFile("sample-text_for_editor.txt");
+            tab.getActiveEditor().recalculateLayout();
             //display latest page
-            obj.getPageIndex()=obj.getMaxPage();
+            tab.getActiveEditor().getPageIndex()=tab.getActiveEditor().getMaxPage();
             InvalidateRect(hwnd, NULL, FALSE);
             break;
         }
         
         //if ctrl+F pressed
         if (wParam == 6) {
-            obj.getSearchState() = true;
+            tab.getActiveEditor().getSearchState() = true;
         }
 
         //ctrl+H for history
         if (wParam == 8) {
             //if already shown then close
-            if (obj.getHistoryState()==true) {
-                obj.getHistoryState() = false;
+            if (tab.getActiveEditor().getHistoryState()==true) {
+                tab.getActiveEditor().getHistoryState() = false;
                 InvalidateRect(hwnd, NULL, FALSE);
             }
             else
-            obj.getHistoryState()=true;
+            tab.getActiveEditor().getHistoryState()=true;
         }
         // ESC pressed, cancel search, clear the text in it
         if (wParam == 27) {
             //clear the marked indices
-            obj.clear_highlights();
-            obj.getSearchState() = false;
-            obj.getSearchTextIndex() = 0;
-            obj.getSearchText()[obj.getSearchTextIndex()] = L'\0';
+            tab.getActiveEditor().clear_highlights();
+            tab.getActiveEditor().getSearchState() = false;
+            tab.getActiveEditor().getSearchTextIndex() = 0;
+            tab.getActiveEditor().getSearchText()[tab.getActiveEditor().getSearchTextIndex()] = L'\0';
         }
        
         //implementing search text interception and backspace handling. 
-        if (obj.getSearchState()) {
+        if (tab.getActiveEditor().getSearchState()) {
             // Printable characters
             if (wParam >= 32 && wParam != 127) {
                 //don't take a word larger than 20 letters
-                if (obj.getSearchTextIndex() >= 20)break;
+                if (tab.getActiveEditor().getSearchTextIndex() >= 20)break;
 
-                obj.getSearchText()[obj.getSearchTextIndex()] = wParam;
-                obj.getSearchTextIndex()++;
-                obj.getSearchText()[obj.getSearchTextIndex()] = L'\0';
+                tab.getActiveEditor().getSearchText()[tab.getActiveEditor().getSearchTextIndex()] = wParam;
+                tab.getActiveEditor().getSearchTextIndex()++;
+                tab.getActiveEditor().getSearchText()[tab.getActiveEditor().getSearchTextIndex()] = L'\0';
 
             }
             //backspace
             else if (wParam == '\b') {
-                obj.getSearchText()[obj.getSearchTextIndex()] = L'\0';
+                tab.getActiveEditor().getSearchText()[tab.getActiveEditor().getSearchTextIndex()] = L'\0';
 
-                if(obj.getSearchTextIndex()!=0)
-                     obj.getSearchTextIndex()--;
+                if(tab.getActiveEditor().getSearchTextIndex()!=0)
+                     tab.getActiveEditor().getSearchTextIndex()--;
             }
             //enter pressed execute search
             else if (wParam == '\r') {
                 //if empty array
-                if (obj.getSearchTextIndex() == 0) {
+                if (tab.getActiveEditor().getSearchTextIndex() == 0) {
                     //clear the marked indices
-                    obj.clear_highlights();
-                    obj.getSearchState() = false;
+                    tab.getActiveEditor().clear_highlights();
+                    tab.getActiveEditor().getSearchState() = false;
                     InvalidateRect(hwnd, NULL, FALSE);
                     break;
                 }
-                obj.executeSearch();
+                tab.getActiveEditor().executeSearch();
                 InvalidateRect(hwnd, NULL, FALSE);
 
             }
@@ -175,7 +173,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         else {
             //1 is ascii for ctrl+A
             if (wParam == 1) {
-                obj.selectAll();
+                tab.getActiveEditor().selectAll();
                 InvalidateRect(hwnd, NULL, FALSE);
                 break;
             }
@@ -207,17 +205,17 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                             }
 
                             //if text selected
-                            if (obj.getselectionState()) {
+                            if (tab.getActiveEditor().getselectionState()) {
                                 //delete selected text
-                                obj.deletePortion();
+                                tab.getActiveEditor().deletePortion();
                                 InvalidateRect(hwnd, NULL, FALSE);
                             }
                             //insert to buffer
                             for (int i = 0; i < len; i++) {
-                                obj.insertAt(obj.getCursorIndex(), temp[i]);
+                                tab.getActiveEditor().insertAt(tab.getActiveEditor().getCursorIndex(), temp[i]);
                             }
-                            obj.recalculateLayout();
-                            obj.getPageIndex() = obj.findCurrentPage();
+                            tab.getActiveEditor().recalculateLayout();
+                            tab.getActiveEditor().getPageIndex() = tab.getActiveEditor().findCurrentPage();
                             InvalidateRect(hwnd, NULL, FALSE);
                             delete[] temp;
                         }
@@ -234,7 +232,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                     EmptyClipboard();
 
 
-                    int len = obj.getselectionStart() - obj.getselectionEnd() + 1;// number of characters (without null)
+                    int len = tab.getActiveEditor().getselectionStart() - tab.getActiveEditor().getselectionEnd() + 1;// number of characters (without null)
                     if (len <= 0) {
                         break;
                     }
@@ -248,8 +246,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                         // 3. Copy data into allocated memory
                         wchar_t* pMem = (wchar_t*)GlobalLock(hMem);
                         unsigned long long index = 0;
-                        for (unsigned long long i = obj.getselectionEnd(); i <= obj.getselectionStart(); i++) {
-                            pMem[index] = obj.getText()[i];
+                        for (unsigned long long i = tab.getActiveEditor().getselectionEnd(); i <= tab.getActiveEditor().getselectionStart(); i++) {
+                            pMem[index] = tab.getActiveEditor().getText()[i];
                          //   wprintf(L"%c", pMem[index]);
                             index++;
                         }
@@ -268,28 +266,28 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             else if (wParam == '\b') {
 
                 //no need of deletion
-                if (obj.getLength() <= 1) {
-                    obj.getCursorIndex() = 0;
-                    obj.getLength() = 0;
-                    obj.getWithoutSp() = 0;
-                    obj.getText()[0] = '\0';
-                    obj.getTotalWords() = 0;
-                    obj.recalculateLayout();
+                if (tab.getActiveEditor().getLength() <= 1) {
+                    tab.getActiveEditor().getCursorIndex() = 0;
+                    tab.getActiveEditor().getLength() = 0;
+                    tab.getActiveEditor().getWithoutSp() = 0;
+                    tab.getActiveEditor().getText()[0] = '\0';
+                    tab.getActiveEditor().getTotalWords() = 0;
+                    tab.getActiveEditor().recalculateLayout();
 
                 }
                 else {
                     //deletion required 
 
                      //clear selected area
-                    if (obj.getselectionState()) {
-                        obj.deletePortion();
-                        obj.getselectionState() = false;
+                    if (tab.getActiveEditor().getselectionState()) {
+                        tab.getActiveEditor().deletePortion();
+                        tab.getActiveEditor().getselectionState() = false;
                     }
                     InvalidateRect(hwnd, NULL, FALSE);
 
-                    obj.deleteBack(obj.getCursorIndex());
-                    obj.recalculateLayout();
-                    obj.getPageIndex() = obj.findCurrentPage();
+                    tab.getActiveEditor().deleteBack(tab.getActiveEditor().getCursorIndex());
+                    tab.getActiveEditor().recalculateLayout();
+                    tab.getActiveEditor().getPageIndex() = tab.getActiveEditor().findCurrentPage();
                 }
 
                 InvalidateRect(hwnd, NULL, FALSE);
@@ -297,15 +295,15 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             // Enter key
             else if (wParam == '\r') {
                 //clear selected area
-                if (obj.getselectionState()) {
-                    obj.deletePortion();
-                    obj.getselectionState() = false;
+                if (tab.getActiveEditor().getselectionState()) {
+                    tab.getActiveEditor().deletePortion();
+                    tab.getActiveEditor().getselectionState() = false;
                 }
                 InvalidateRect(hwnd, NULL, FALSE);
 
-                obj.insertAt(obj.getCursorIndex(), '\n');
-                obj.recalculateLayout();
-                obj.getPageIndex() = obj.findCurrentPage();
+                tab.getActiveEditor().insertAt(tab.getActiveEditor().getCursorIndex(), '\n');
+                tab.getActiveEditor().recalculateLayout();
+                tab.getActiveEditor().getPageIndex() = tab.getActiveEditor().findCurrentPage();
 
                 InvalidateRect(hwnd, NULL, FALSE);
 
@@ -313,16 +311,16 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             // Printable characters
             else if (wParam >= 32 && wParam != 127) {
                 //clear selected area
-                if (obj.getselectionState()) {
-                    obj.deletePortion();
-                    obj.getselectionState() = false;
+                if (tab.getActiveEditor().getselectionState()) {
+                    tab.getActiveEditor().deletePortion();
+                    tab.getActiveEditor().getselectionState() = false;
                 }
                 InvalidateRect(hwnd, NULL, FALSE);
 
-                obj.insertAt(obj.getCursorIndex(), (wchar_t)wParam);
+                tab.getActiveEditor().insertAt(tab.getActiveEditor().getCursorIndex(), (wchar_t)wParam);
 
-                obj.recalculateLayout();
-                obj.getPageIndex() = obj.findCurrentPage();
+                tab.getActiveEditor().recalculateLayout();
+                tab.getActiveEditor().getPageIndex() = tab.getActiveEditor().findCurrentPage();
 
                 InvalidateRect(hwnd, NULL, FALSE);
 
@@ -337,27 +335,27 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
     case WM_KEYDOWN: {
 
-        if(!obj.getSearchState())
+        if(!tab.getActiveEditor().getSearchState())
             if (wParam == VK_DELETE) {
             //clear selected area
-            if (obj.getselectionState()) {
-                obj.deletePortion();
-                obj.getselectionState() = false;
+            if (tab.getActiveEditor().getselectionState()) {
+                tab.getActiveEditor().deletePortion();
+                tab.getActiveEditor().getselectionState() = false;
             }
             InvalidateRect(hwnd, NULL, FALSE);
 
             //no need of deletion
-            if (obj.getLength() <= 1) {
-                obj.getCursorIndex() = 0;
-                obj.getLength() = 0;
-                obj.getWithoutSp() = 0;
-                obj.getText()[0] = '\0';
-                obj.getTotalWords() = 0;
-                obj.recalculateLayout();
+            if (tab.getActiveEditor().getLength() <= 1) {
+                tab.getActiveEditor().getCursorIndex() = 0;
+                tab.getActiveEditor().getLength() = 0;
+                tab.getActiveEditor().getWithoutSp() = 0;
+                tab.getActiveEditor().getText()[0] = '\0';
+                tab.getActiveEditor().getTotalWords() = 0;
+                tab.getActiveEditor().recalculateLayout();
 
             }
             else {
-                obj.deleteForward();
+                tab.getActiveEditor().deleteForward();
             }
 
             InvalidateRect(hwnd, NULL, FALSE);
@@ -365,20 +363,20 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
       
         // Up arrow pressed
         else if (wParam == VK_UP) {
-            if (obj.getPageIndex() > 0) {
-                obj.getPageIndex()--;
+            if (tab.getActiveEditor().getPageIndex() > 0) {
+                tab.getActiveEditor().getPageIndex()--;
 
                 //move cursor to the start of page
-                generateCursorInfo(obj.getstartX(), obj.getstartY(), obj.getCursorIndex(), obj.getcursorX(), obj.getcursorY());
+                generateCursorInfo(tab.getActiveEditor().getstartX(), tab.getActiveEditor().getstartY(), tab.getActiveEditor().getCursorIndex(), tab.getActiveEditor().getcursorX(), tab.getActiveEditor().getcursorY());
             }
         }
         
         //down arrow key
         else if (wParam==VK_DOWN) {
-            if (obj.getPageIndex() + 1 <= obj.getMaxPage()) {
-                obj.getPageIndex()++;
+            if (tab.getActiveEditor().getPageIndex() + 1 <= tab.getActiveEditor().getMaxPage()) {
+                tab.getActiveEditor().getPageIndex()++;
                 //move cursor
-                generateCursorInfo(obj.getstartX(), obj.getstartY(), obj.getCursorIndex(), obj.getcursorX(), obj.getcursorY());
+                generateCursorInfo(tab.getActiveEditor().getstartX(), tab.getActiveEditor().getstartY(), tab.getActiveEditor().getCursorIndex(), tab.getActiveEditor().getcursorX(), tab.getActiveEditor().getcursorY());
             }
         }
             
@@ -394,15 +392,15 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     //right click(cursor placement)
     case WM_RBUTTONDOWN: {
         //stop selection
-        obj.getselectionState() = false;
-        obj.getselectionStart() = -1;
-        obj.getselectionEnd() = -1;
+        tab.getActiveEditor().getselectionState() = false;
+        tab.getActiveEditor().getselectionStart() = -1;
+        tab.getActiveEditor().getselectionEnd() = -1;
 
         int x = LOWORD(lParam);
         int y = HIWORD(lParam);
      //   wprintf(L"x: %d ,  y: %d\n", x, y);
 
-        generateCursorInfo(x, y, obj.getCursorIndex(), obj.getcursorX(), obj.getcursorY());
+        generateCursorInfo(x, y, tab.getActiveEditor().getCursorIndex(), tab.getActiveEditor().getcursorX(), tab.getActiveEditor().getcursorY());
         
        
         return 0;
@@ -414,10 +412,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
        // wprintf(L"Selection Start at-> x: %d ,y:  %d!\n",x,y);
 
         //turn on selection
-        obj.getselectionState() = true;
+        tab.getActiveEditor().getselectionState() = true;
 
         //save coordinates of starting position and map coordinates->index 
-        generateCursorInfo(x, y, obj.getselectionStart(), obj.getselectionStartX(), obj.getselectionStartY());
+        generateCursorInfo(x, y, tab.getActiveEditor().getselectionStart(), tab.getActiveEditor().getselectionStartX(), tab.getActiveEditor().getselectionStartY());
 
         //dragging
         SetCapture(hwnd);
@@ -428,7 +426,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     //selection
     case WM_MOUSEMOVE: {
         //check if user is selecting
-        if (obj.getselectionState()) {
+        if (tab.getActiveEditor().getselectionState()) {
             int x = LOWORD(lParam);
             int y = HIWORD(lParam);
 
@@ -437,14 +435,14 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             int tempX, tempY;
             generateCursorInfo(x, y, tempIndex, tempX, tempY);
 
-            obj.getselectionEnd() = tempIndex;
-            obj.getselectionEndX() = tempX;
-            obj.getselectionEndY() = tempY;
+            tab.getActiveEditor().getselectionEnd() = tempIndex;
+            tab.getActiveEditor().getselectionEndX() = tempX;
+            tab.getActiveEditor().getselectionEndY() = tempY;
 
             //new cursor position
-            obj.getCursorIndex() = tempIndex;
-            obj.getcursorX() = tempX;
-            obj.getcursorY() = tempY;
+            tab.getActiveEditor().getCursorIndex() = tempIndex;
+            tab.getActiveEditor().getcursorX() = tempX;
+            tab.getActiveEditor().getcursorY() = tempY;
 
             InvalidateRect(hwnd, NULL, FALSE);
         }
@@ -454,7 +452,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
     //release selection
     case WM_LBUTTONUP: {
-        obj.getselectionState() = true;
+        tab.getActiveEditor().getselectionState() = true;
         ReleaseCapture();
         return 0;
     }
